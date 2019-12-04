@@ -1,8 +1,8 @@
 {
-  "name": "@eyblockchain/nightlite",
-  "description": "Library for Nightfall",
-  "license": "PUBLIC DOMAIN",
-  "version": "0.0.0-semantically-released",
+  "name": "@eyblockchain/nightfall-sdk",
+  "description": "SDK for Nightfall",
+  "license": "MIT",
+  "version": "0.0.0",
   "scripts": {
     "start": "node build/index.js",
     "dev": "nodemon build/index.js",
@@ -14,7 +14,7 @@
     "lint:sol": "solium -d contracts"
   },
   "devDependencies": {
-    "cod-scripts": "^3.2.0",
+    "cod-scripts": "^3.3.0",
     "ethlint": "^1.2.4",
     "markdownlint-cli": "^0.18.0",
     "nodemon": "^1.19.2",
