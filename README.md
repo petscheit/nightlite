@@ -1,3 +1,17 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Nightlite](#nightlite)
+  - [Installation and Configuration](#installation-and-configuration)
+  - [Trusted Setup](#trusted-setup)
+  - [Deploy Necessary Contracts](#deploy-necessary-contracts)
+  - [Deploy VKs to Registry](#deploy-vks-to-registry)
+  - [Run Nightfall Functions](#run-nightfall-functions)
+  - [To Do](#to-do)
+    - [Passing Providers](#passing-providers)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Nightlite
 
 This library strips down the main Nightfall repository to the minimum needed to run the Nightfall
@@ -11,12 +25,12 @@ These instructions assume that you're running your application on a Dockerized L
 reason for this is because Zokrates is required to run on Linux. Nightlite can presumably be run
 natively on Linux, but this guide will not provide support or instruction for that.
 
-In your Dockerfile that will be running `nightlite`, you will need to perform a multi-stage
-build. Import the official ZoKrates image like so:
+In your Dockerfile that will be running `nightlite`, you will need to perform a multi-stage build.
+Import the official ZoKrates image like so:
 
 ```Dockerfile
 # Pull in a Zokrates container so that we can pull its contents into the below container.
-FROM zokrates/zokrates:0.4.11 as builder
+FROM zokrates/zokrates:0.5.1 as builder
 ```
 
 And then, (assuming this is your final Docker container), copy the necessary Zokrates files into
@@ -30,18 +44,23 @@ COPY --from=builder /home/zokrates/zokrates /app/zokrates
 COPY --from=builder /home/zokrates/.zokrates\* /app/stdlib
 ```
 
+`Nightlite` defaults logging levels to `info`, but if you want more detailed console logs, you can
+set the logging level to `verbose`, or for even more detail, `debug` by calling
+`logger.setLogLevel('verbose')`
+
 Finally, on startup, your application should run `nightfall.setProvider(<ProviderURL>)`. This will
 set the provider that all Nightfall smart contract calls will use.
 
 ## Trusted Setup
 
-The `setup/gm17` directory contains the .code files that you need in order to run the Nightfall functions.
+The `setup/gm17` directory contains the .code files that you need in order to run the Nightfall
+functions.
 
 TEMP: Copy these files (e.g., `ft-burn.code`) over to your project. In a future update,
 
 These .code files need to have the `generateZokratesFiles()` function run on them. This will
 generate the files you need for the rest of the Nightfall protocol to work. See the specific
-documentation for `setup/generateZokratesFiles()` for usage instructions.
+documentation in `setup/generateZokratesFiles()` for usage instructions.
 
 The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be
 re-run for a given .code file whenever it is changed.
