@@ -1,17 +1,17 @@
-# Nightfall SDK
+# Nightlite
 
-If you're interested in incorporating Nightfall into your own project, these are the steps that you
-need to take. These steps need to be completed in order.
+This library strips down the main Nightfall repository to the minimum needed to run the Nightfall
+protocol on other applications.
 
 ## Installation and Configuration
 
-To install nightfall-sdk, run `npm install --save nightfall-sdk`
+To install nightlite, run `npm install --save nightlite`
 
 These instructions assume that you're running your application on a Dockerized Linux container. The
-reason for this is because Zokrates is required to run on Linux. Nightfall-sdk can presumably be run
+reason for this is because Zokrates is required to run on Linux. Nightlite can presumably be run
 natively on Linux, but this guide will not provide support or instruction for that.
 
-In your Dockerfile that will be running `nightfall-sdk`, you will need to perform a multi-stage
+In your Dockerfile that will be running `nightlite`, you will need to perform a multi-stage
 build. Import the official ZoKrates image like so:
 
 ```Dockerfile
@@ -39,9 +39,12 @@ The `setup/gm17` directory contains the .code files that you need in order to ru
 
 TEMP: Copy these files (e.g., `ft-burn.code`) over to your project. In a future update,
 
-These .code files need to have the `generateZokratesFiles()` function run on them. This will generate the files you need for the rest of the Nightfall protocol to work. See the specific documentation for `setup/generateZokratesFiles()` for usage instructions.
+These .code files need to have the `generateZokratesFiles()` function run on them. This will
+generate the files you need for the rest of the Nightfall protocol to work. See the specific
+documentation for `setup/generateZokratesFiles()` for usage instructions.
 
-The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be re-run for a given .code file whenever it is changed.
+The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be
+re-run for a given .code file whenever it is changed.
 
 ## Deploy Necessary Contracts
 
