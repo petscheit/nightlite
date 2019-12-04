@@ -1,17 +1,17 @@
-# Nightfall SDK
+# Nightlite
 
-If you're interested in incorporating Nightfall into your own project, these are the steps that you
-need to take. These steps need to be completed in order.
+This library strips down the main Nightfall repository to the minimum needed to run the Nightfall
+protocol on other applications.
 
 ## Installation and Configuration
 
-To install nightfall-sdk, run `npm install --save nightfall-sdk`
+To install nightlite, run `npm install --save nightlite`
 
 These instructions assume that you're running your application on a Dockerized Linux container. The
-reason for this is because Zokrates is required to run on Linux. Nightfall-sdk can presumably be run
+reason for this is because Zokrates is required to run on Linux. Nightlite can presumably be run
 natively on Linux, but this guide will not provide support or instruction for that.
 
-In your Dockerfile that will be running `nightfall-sdk`, you will need to perform a multi-stage
+In your Dockerfile that will be running `nightlite`, you will need to perform a multi-stage
 build. Import the official ZoKrates image like so:
 
 ```Dockerfile
