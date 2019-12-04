@@ -1,0 +1,34 @@
+name: Validate Code
+
+on:
+  push:
+    branches-ignore:
+      - "master"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [11.15]
+
+    steps:
+      - uses: actions/checkout@master
+
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: https://registry.ey.npme.io
+
+      - run: npm install --no-save
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - run: npm run lint
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - run: npm run lint:md
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

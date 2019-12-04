@@ -1,8 +1,8 @@
 {
-  "name": "@eyblockchain/nightfall-sdk",
-  "description": "SDK for Nightfall",
-  "license": "MIT",
-  "version": "0.0.0",
+  "name": "@eyblockchain/nightlite",
+  "description": "Library for Nightfall",
+  "license": "PUBLIC DOMAIN",
+  "version": "0.0.0-semantically-released",
   "scripts": {
     "start": "node build/index.js",
     "dev": "nodemon build/index.js",

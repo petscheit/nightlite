@@ -39,9 +39,12 @@ The `setup/gm17` directory contains the .code files that you need in order to ru
 
 TEMP: Copy these files (e.g., `ft-burn.code`) over to your project. In a future update,
 
-These .code files need to have the `generateZokratesFiles()` function run on them. This will generate the files you need for the rest of the Nightfall protocol to work. See the specific documentation for `setup/generateZokratesFiles()` for usage instructions.
+These .code files need to have the `generateZokratesFiles()` function run on them. This will
+generate the files you need for the rest of the Nightfall protocol to work. See the specific
+documentation for `setup/generateZokratesFiles()` for usage instructions.
 
-The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be re-run for a given .code file whenever it is changed.
+The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be
+re-run for a given .code file whenever it is changed.
 
 ## Deploy Necessary Contracts
 
