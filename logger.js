@@ -16,34 +16,9 @@ function formatWithInspect(val) {
   return prefix + (shouldFormat ? inspect(val, { depth: null, colors: true }) : val);
 }
 
-// The default log level
-const logLevel = {
-  console: new transports.Console({ level: 'info' }),
-};
+const logLevel = process.env.NIGHTLITE_LOG_LEVEL ? process.env.NIGHTLITE_LOG_LEVEL : 'info';
 
-/**
- * Set a log level. Options are (in order of priority)
- * error, warn, info, verbose, debug, silly.
- *
- * Setting a log level of 'info' for example will log out error, warn, and info logs, but ignore debug and silly logs.
- *
- * @param {String} newLevel
- */
-function setLogLevel(newLevel) {
-  if (
-    newLevel !== 'error' ||
-    newLevel !== 'warn' ||
-    newLevel !== 'info' ||
-    newLevel !== 'verbose' ||
-    newLevel !== 'debug' ||
-    newLevel !== 'silly'
-  ) {
-    throw new Error('Not a valid log level');
-  }
-  logLevel.console = new transports.Console({ level: newLevel });
-}
-
-createLogger({
+module.exports = createLogger({
   level: logLevel,
   format: format.combine(
     format.timestamp(),
@@ -59,7 +34,3 @@ createLogger({
   ),
   transports: [new transports.Console()],
 });
-
-module.exports = {
-  setLogLevel,
-};

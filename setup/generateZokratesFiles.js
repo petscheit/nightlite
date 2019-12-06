@@ -151,7 +151,7 @@ function keyExtractor(solFilePath) {
  * @param {String} directoryPath
  * @param {Boolean} suppress - Flag for logging out zokrates output or not.
  */
-async function generateZokratesFiles(directoryPath, suppress) {
+async function generateZokratesFiles(directoryPath) {
   // Check to see if imports are present.
   await filingChecks(directoryPath);
 
@@ -178,7 +178,7 @@ async function generateZokratesFiles(directoryPath, suppress) {
     directoryWithSlash,
     'out',
     {
-      verbose: !suppress,
+      verbose: true,
     },
   );
   logger.debug('Compile output:', compileOutput);
@@ -192,7 +192,7 @@ async function generateZokratesFiles(directoryPath, suppress) {
     'gm17',
     'verification.key',
     'proving.key',
-    { verbose: !suppress },
+    { verbose: true },
   );
   logger.debug('Setup output:', setupOutput);
   logger.info('Finished setup at', directoryPath);
@@ -203,7 +203,7 @@ async function generateZokratesFiles(directoryPath, suppress) {
     directoryWithSlash,
     'verifier.sol',
     'gm17',
-    { verbose: !suppress },
+    { verbose: true },
   );
   logger.debug('Export-verifier output:', exportVerifierOutput);
   logger.info('Finished export-verifier at', directoryPath);

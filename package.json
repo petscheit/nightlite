@@ -1,6 +1,6 @@
 {
-  "name": "@eyblockchain/nightfall-sdk",
-  "description": "SDK for Nightfall",
+  "name": "@eyblockchain/nightlite",
+  "description": "Minimal required library for the Nightfall protocol",
   "license": "MIT",
   "version": "0.0.0",
   "scripts": {
