@@ -1,9 +1,6 @@
 name: Validate Code
 
-on:
-  push:
-    branches-ignore:
-      - "master"
+on: pull_request
 
 jobs:
   validate:
@@ -19,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-          registry-url: https://registry.ey.npme.io
 
       - run: npm install --no-save
         env:
