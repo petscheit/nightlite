@@ -19,7 +19,7 @@ protocol on other applications.
 
 ## Installation and Configuration
 
-To install nightlite, run `npm install --save nightlite`
+To install nightlite, run `npm install --save @eyblockchain/nightlite`
 
 These instructions assume that you're running your application on a Dockerized Linux container. The
 reason for this is because Zokrates is required to run on Linux. Nightlite can presumably be run
