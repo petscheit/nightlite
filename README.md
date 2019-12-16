@@ -6,14 +6,14 @@ protocol on other applications.
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Nightlite](#nightlite)
-  - [Installation and Configuration](#installation-and-configuration)
-  - [Trusted Setup](#trusted-setup)
-  - [Deploy Necessary Contracts](#deploy-necessary-contracts)
-  - [Deploy VKs to Registry](#deploy-vks-to-registry)
-  - [Run Nightfall Functions](#run-nightfall-functions)
-  - [To Do](#to-do)
-    - [Passing Providers](#passing-providers)
+- [Installation and Configuration](#installation-and-configuration)
+- [Trusted Setup](#trusted-setup)
+- [Deploy Necessary Contracts](#deploy-necessary-contracts)
+- [Deploy VKs to Registry](#deploy-vks-to-registry)
+- [Run Nightfall Functions](#run-nightfall-functions)
+- [To Do](#to-do)
+  - [Passing Providers](#passing-providers)
+  - [Acknowledgements](#acknowledgements)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -48,8 +48,9 @@ COPY --from=builder /home/zokrates/.zokrates\* /app/stdlib
 set the logging level to `verbose`, or for even more detail, `debug` by calling
 `logger.setLogLevel('verbose')`
 
-Finally, on startup, your application should run `nightfall.setProvider(<ProviderURL>)`. This will
-set the provider that all Nightfall smart contract calls will use.
+Finally, on startup, your application should run `provider.connect(<ProviderURL>)`. (e.g.,
+`provider.connect('ws://ganache:8545')`) This will set the provider that all Nightfall smart
+contract calls will use.
 
 ## Trusted Setup
 
