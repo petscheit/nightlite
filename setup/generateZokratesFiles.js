@@ -87,16 +87,6 @@ async function filingChecks(codeDirectory) {
     }
   }
 
-  // Copies files over to /code/safe-dump
-  const safeDumpDirectory = path.join(codeDirectory, '../../safe-dump');
-  fs.copyFileSync(
-    `${codeDirectory}/${codeFileName}.${codeFileExt}`,
-    `${safeDumpDirectory}/${codeFileName}.${codeFileExt}`,
-    err => {
-      if (err) throw new Error('Error while copying file:', err);
-    },
-  );
-
   await checkForImportFiles(`${codeDirectory}`, `${codeFileName}.${codeFileExt}`);
 }
 
