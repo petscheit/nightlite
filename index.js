@@ -1,7 +1,9 @@
 const generateZokratesFiles = require('./setup/generateZokratesFiles');
-const logger = require('./logger');
+const provider = require('./provider');
+const vks = require('./vks');
 
 module.exports = {
-  logger,
   generateZokratesFiles,
+  provider,
+  vks,
 };
