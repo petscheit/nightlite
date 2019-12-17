@@ -5,10 +5,10 @@
  * Ethereum and Zokrates
  */
 
-import BI from 'big-integer';
-import hexToBinary from 'hex-to-binary';
-import crypto from 'crypto';
-import { Buffer } from 'safe-buffer';
+const BI = require('big-integer');
+const hexToBinary = require('hex-to-binary');
+const crypto = require('crypto');
+const { Buffer } = require('safe-buffer');
 
 const inputsHashLength = 32;
 

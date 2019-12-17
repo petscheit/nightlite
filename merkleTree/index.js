@@ -1,8 +1,8 @@
-import request from 'request';
-import config from 'config';
-import utilsPoll from './utils';
-import utils from '../utils';
-import logger from '../logger';
+const request = require('request');
+const config = require('config');
+const utilsPoll = require('./utils');
+const utils = require('../utils');
+const logger = require('../logger');
 
 const url = `${process.env.MERKLE_TREE_HOST}:${process.env.MERKLE_TREE_PORT}`;
 

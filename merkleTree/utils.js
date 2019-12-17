@@ -3,7 +3,7 @@
 @author iAmMichaelConnor
 */
 
-import logger from '../logger';
+const logger = require('../logger');
 
 const poll = async (pollingFunction, interval, arg1, arg2) => {
   // logger.debug('Polling...');

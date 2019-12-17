@@ -5,12 +5,12 @@
 rest api calls, and the heavy-lifitng token-zkp.js and zokrates.js.  It exists so that the amount of logic in restapi.js is absolutely minimised.
 */
 
-import contract from 'truffle-contract';
-import jsonfile from 'jsonfile';
-import config from 'config';
-import utils from './utils';
-import Web3 from './provider';
-import logger from './logger';
+const contract = require('truffle-contract');
+const jsonfile = require('jsonfile');
+const config = require('config');
+const utils = require('./utils');
+const Web3 = require('./provider');
+const logger = require('./logger');
 
 /**
 Loads a verification key to the Verifier Registry

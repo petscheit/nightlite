@@ -1,5 +1,5 @@
-import Web3 from 'web3';
-import logger from './logger';
+const Web3 = require('web3');
+const logger = require('./logger');
 
 module.exports = {
   connection() {
