@@ -8,13 +8,14 @@ module.exports = {
 
   /**
    * Connects to web3 and then sets proper handlers for events
-   * @param blockchainUrl - URL for the blockchain provider to connect to, in the format of ws://ganache:8545
    */
-  connect(blockchainUrl) {
+  connect() {
     if (this.web3) return this.web3.currentProvider;
 
     logger.info('Blockchain Connecting ...');
-    const provider = new Web3.providers.WebsocketProvider(blockchainUrl);
+    const provider = new Web3.providers.WebsocketProvider(
+      `${process.env.BLOCKCHAIN_HOST}:${process.env.BLOCKCHAIN_PORT}`,
+    );
 
     provider.on('error', logger.error);
     provider.on('connect', () => logger.info('Blockchain Connected ...'));
