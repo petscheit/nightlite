@@ -26,7 +26,7 @@ i.e. DIRNAME_DIRPATH_REL: "/dirName/" is a relative path which (on the host mach
 
 ABS - absolute path
 */
-export default {
+module.exports = {
   INPUTS_HASHLENGTH: 32, // expected length of an input to a hash in bytes
   MERKLE_HASHLENGTH: 27, // expected length of inputs to hashes up the merkle tree, in bytes
   BATCH_PROOF_SIZE: 20, // the number of proofs in a batch (you will need to redo the proofs if oyu change this)

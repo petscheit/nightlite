@@ -202,7 +202,7 @@ It works for any size of Merkle tree, it just needs to know the tree depth, whic
 @returns {object} containing: an array of strings - where each element of the array is a node of the sister-path of
 the path from myToken to the Merkle Root and whether the sister node is to the left or the right (this is needed because the order of hashing matters)
 */
-export async function getSiblingPath(account, shieldContract, _commitment, commitmentIndex) {
+async function getSiblingPath(account, shieldContract, _commitment, commitmentIndex) {
   // check the commitment's format:
   // logger.debug('commitment', commitment);
   // if (commitment.length !== config.LEAF_HASHLENGTH * 2) {
@@ -273,7 +273,7 @@ function orderBeforeConcatenation(order, pair) {
 /**
 checkRoot - for DEBUGGING only. Helps give detailed logging for each hash up the merkle-tree, so as to better debug zokrates code.
 */
-export function checkRoot(commitment, commitmentIndex, siblingPath, root) {
+function checkRoot(commitment, commitmentIndex, siblingPath, root) {
   // define Merkle Constants:
   const { TREE_HEIGHT, NODE_HASHLENGTH } = config;
 

@@ -490,7 +490,7 @@ function padHex(A, l) {
   return ensure0x(strip0x(A).padStart(l / 4, '0'));
 }
 
-export default {
+module.exports = {
   isHex,
   utf8StringToHex,
   hexToUtf8String,
