@@ -1,5 +1,5 @@
 const request = require('request');
-const config = require('config');
+const config = require('../config');
 const utilsPoll = require('./utils');
 const utils = require('../utils');
 const logger = require('../logger');

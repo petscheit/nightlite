@@ -53,4 +53,8 @@ module.exports = {
   INPUT_CHUNK_SIZE: 128,
 
   GASPRICE: 20000000000,
+
+  POLLING_FREQUENCY: 6000, // How many milliseconds to wait between each poll
+  TREE_HEIGHT: 32,
+  NODE_HASHLENGTH: 27,
 };

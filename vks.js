@@ -7,7 +7,7 @@ rest api calls, and the heavy-lifitng token-zkp.js and zokrates.js.  It exists s
 
 const contract = require('truffle-contract');
 const jsonfile = require('jsonfile');
-const config = require('config');
+const config = require('./config');
 const utils = require('./utils');
 const Web3 = require('./provider');
 const logger = require('./logger');
