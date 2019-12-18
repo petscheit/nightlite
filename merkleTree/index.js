@@ -38,43 +38,12 @@ const startEventFilterPollingFunction = async args => {
 
     return response;
   } catch (err) {
-    logger.error(
+    logger.debug(
       `Got a polling error "${err}", but that might be because the external server missed our call - we'll poll again...`,
     );
     return false;
   }
 };
-
-/**
-Starts the merkle-tree microservice's filter
-@param {string} contractName
-*/
-async function startEventFilter() {
-  // State the contracts to start filtering. The merkle-tree's config file states which events to filter for each contract.
-  // TODO: move this into the zkp's config file?
-  logger.debug(`\nStarting the merkle-tree microservice's event filters...`);
-
-  const contractNames = ['FTokenShield', 'NFTokenShield'];
-
-  await Promise.all(
-    contractNames.forEach(async contractName => {
-      try {
-        const response = await utilsPoll.poll(
-          startEventFilterPollingFunction,
-          config.POLLING_FREQUENCY,
-          {
-            contractName,
-          },
-        );
-        logger.debug(`\nResponse from merkle-tree microservice for ${contractName}:`);
-        logger.debug(response);
-        return response;
-      } catch (err) {
-        throw new Error(`Could not start merkle-tree microservice's filter for ${contractName}`);
-      }
-    }),
-  );
-}
 
 /**
 Get the latestLeaf object from the tree's metadata db.
@@ -188,6 +157,37 @@ async function getSiblingPathByLeafIndex(contractName, leafIndex) {
       else resolve(body.data);
     });
   });
+}
+
+/**
+Starts the merkle-tree microservice's filter
+@param {string} contractName
+*/
+async function startEventFilter() {
+  // State the contracts to start filtering. The merkle-tree's config file states which events to filter for each contract.
+  // TODO: move this into the zkp's config file?
+  logger.debug(`\nStarting the merkle-tree microservice's event filters...`);
+
+  const contractNames = ['FTokenShield', 'NFTokenShield'];
+
+  await Promise.all(
+    contractNames.map(async contractName => {
+      try {
+        const response = await utilsPoll.poll(
+          startEventFilterPollingFunction,
+          config.POLLING_FREQUENCY,
+          {
+            contractName,
+          },
+        );
+        logger.debug(`\nResponse from merkle-tree microservice for ${contractName}:`);
+        logger.debug(response);
+        return response;
+      } catch (err) {
+        throw new Error(`Could not start merkle-tree microservice's filter for ${contractName}`);
+      }
+    }),
+  );
 }
 
 /**
@@ -328,7 +328,7 @@ module.exports = {
   startEventFilter,
   waitForBlockNumber,
   getLeafByLeafIndex,
-  getSiblingPathByLeafIndex,
   getSiblingPath,
+  getSiblingPathByLeafIndex,
   checkRoot,
 };
