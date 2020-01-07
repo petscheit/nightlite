@@ -66,8 +66,7 @@ async function checkForImportFiles(codeFileDirectory, codeFile) {
 }
 
 /**
- * Copies files over to /code/safe-dump, and then checks to ensure imports are present.
- * Currently, this function will catch "missing" imports, but the code will compile correctly.
+ * Currently, this function will catch "missing" imports, but only logs out on missing files.
  * @param {string} codeDirectory - Directory that contains the .code file (e.g., '/code/gm17/ft-burn')
  */
 async function filingChecks(codeDirectory) {
