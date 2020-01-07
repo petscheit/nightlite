@@ -14,32 +14,21 @@ const logger = require('./logger');
 
 /**
 Loads a verification key to the Verifier Registry
+ * @param {string} vkIdentifier - A 'key' against which the Shield Contract will store the vk. 'vkIdentifier's could (for example) be strings of the form 'mint', 'transfer', 'burn'; or integers of the form 0, 1, 2 (or some other unique identifier).
  * @param {String} vkJsonFile - Path to vk file in JSON form
  * @param {Object} blockchainOptions
- * @param {Object} blockchainOptions.verifierJson - Compiled JSON of verifier contract
- * @param {String} blockchainOptions.verifierAddress - address of deployed verifier contract
- * @param {Object} blockchainOptions.verifierRegistryJson - Compiled JSON of verifier contract
- * @param {String} blockchainOptions.verifierRegistryAddress - address of deployed verifier contract
+ * @param {Object} blockchainOptions.vkRegistryJson - Compiled JSON of verifier contract
+ * @param {String} blockchainOptions.vkRegistryAddress - address of deployed verifier contract
  * @param {String} blockchainOptions.account - Account that will send the transactions
 */
-async function loadVk(vkJsonFile, blockchainOptions) {
-  const {
-    verifierJson,
-    verifierAddress,
-    verifierRegistryJson,
-    verifierRegistryAddress,
-    account,
-  } = blockchainOptions;
+async function loadVk(vkIdentifier, vkJsonFile, blockchainOptions) {
+  const { vkRegistryJson, vkRegistryAddress, account } = blockchainOptions;
 
   logger.verbose(`Loading VK for ${vkJsonFile}`);
 
-  const verifier = contract(verifierJson);
-  verifier.setProvider(Web3.connect());
-  const verifierInstance = await verifier.at(verifierAddress);
-
-  const verifierRegistry = contract(verifierRegistryJson);
-  verifierRegistry.setProvider(Web3.connect());
-  const verifierRegistryInstance = await verifierRegistry.at(verifierRegistryAddress);
+  const vkRegistry = contract(vkRegistryJson);
+  vkRegistry.setProvider(Web3.connect());
+  const vkRegistryInstance = await vkRegistry.at(vkRegistryAddress);
 
   // Get VKs from the /code/gm17 directory and convert them into Solidity uints.
   let vk = await new Promise((resolve, reject) => {
@@ -53,17 +42,12 @@ async function loadVk(vkJsonFile, blockchainOptions) {
   vk = vk.map(el => utils.hexToDec(el));
 
   // upload the vk to the smart contract
-  logger.debug('Registering verifying key');
-  const txReceipt = await verifierRegistryInstance.registerVk(vk, [verifierInstance.address], {
+  logger.debug('Registering verification key');
+  await vkRegistryInstance.registerVerificationKey(vk, vkIdentifier, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
   });
-
-  // eslint-disable-next-line no-underscore-dangle
-  const vkId = txReceipt.logs[0].args._vkId;
-
-  return vkId;
 }
 
 module.exports = {
