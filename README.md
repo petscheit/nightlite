@@ -120,9 +120,9 @@ is, but this isn't good. We need to figure out how to get these functions their 
 
 Here are some possibilities:
 
-1.  **Pass the provider to each function**: The most straightforward, but also a lot of clutter
-2.  Set a "provider" singleton: Requires some additional setup from the user (probably just calling
-    `setProvider()` on startup).
+1. **Pass the provider to each function**: The most straightforward, but also a lot of clutter
+2. Set a "provider" singleton: Requires some additional setup from the user (probably just calling
+   `setProvider()` on startup).
 
 ### Acknowledgements
 
