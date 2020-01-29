@@ -14,7 +14,7 @@ const utils = require('./utils');
 const logger = require('./logger');
 const Element = require('./Element');
 const Web3 = require('./provider');
-const erc721Interface = require('./contracts/ERC721Interface.json');
+const erc721Interface = require('./build/contracts/ERC721Interface.json');
 
 /**
  * Mint a commitment

@@ -15,7 +15,7 @@ const utils = require('./utils');
 const logger = require('./logger');
 const Element = require('./Element');
 const Web3 = require('./provider');
-const erc20Interface = require('./contracts/ERC20Interface.json');
+const erc20Interface = require('./build/contracts/ERC20Interface.json');
 
 /**
  * Mint a fungible token commitment.

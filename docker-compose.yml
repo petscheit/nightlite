@@ -1,0 +1,13 @@
+version: '3.5'
+
+services:
+  truffle:
+    image: ajmay/truffle:5.0.9
+    environment:
+      SOLC_VERSION: 0.5.8
+    volumes:
+      - ./contracts:/truffle/contracts:delegated
+      - ./build/contracts:/truffle/build/contracts:delegated
+    logging:
+      options:
+        max-size: 10m
