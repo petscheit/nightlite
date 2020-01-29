@@ -45,8 +45,8 @@ COPY --from=builder /home/zokrates/.zokrates\* /app/stdlib
 ```
 
 `Nightlite` defaults logging levels to `info`, but if you want more detailed console logs, you can
-set the logging level to `verbose`, or for even more detail, `debug` by calling
-`logger.setLogLevel('verbose')`
+set the logging level to `verbose`, or for even more detail, `debug` by setting an environment
+variable `NIGHTLITE_LOG_LEVEL` to DEBUG
 
 Finally, on startup, your application should run `provider.connect(<ProviderURL>)`. (e.g.,
 `provider.connect('ws://ganache:8545')`) This will set the provider that all Nightfall smart
