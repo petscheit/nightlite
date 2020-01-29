@@ -13,81 +13,7 @@ const path = require('path');
 const logger = require('../logger');
 
 const readdirAsync = util.promisify(fs.readdir);
-
-/**
- * Returns an array of all imported files in dataLines.
- * @param {String[]} dataLines - Array of lines that make up a .code file.
- * @returns {String[]} - Array of imported files in dataLines.
- */
-function getImportFiles(dataLines) {
-  const cpDataLines = [...dataLines];
-  return cpDataLines.reduce((accArr, line) => {
-    // parses each line of the .code file for a line of the form:
-    // import "./aux-adder.code" as ADD
-    //  and extracts "./aux-adder.code"
-    // ZoKrates' own packages will be ignored, as they are of the form:
-    // import "LIBSNARK/sha256compression"
-    //  which doesn't include ".code", and so are ignored.
-    line.replace(/((import ")+(.+\.+code+)+("+))+?/g, (m1, m2, ii, c) => {
-      if (c !== undefined) {
-        accArr.push(c);
-      }
-    });
-    return accArr;
-  }, []);
-}
-
-/**
- * Ensures that any imported dependencies in code files are present.
- * @param {String} codeFileDirectory - Directory in which code file resides (i.e., /gm17/ft-burn)
- * @param {String} codeFile - Name of code file (i.e., ft-burn)
- * @throws {Error} - If a dependent code file is not found
- */
-async function checkForImportFiles(codeFileDirectory, codeFile) {
-  const dataLines = fs
-    .readFileSync(`${codeFileDirectory}/${codeFile}`)
-    .toString('UTF8')
-    .split(os.EOL);
-
-  // Assumes that any dependencies will exist in the /code/gm17 directory.
-  const codeFileParentPath = path.join(codeFileDirectory, '../../');
-
-  let importFiles = [];
-  importFiles = getImportFiles(dataLines);
-  if (!(importFiles === undefined || importFiles.length === 0)) {
-    // array is nonempty
-    for (let j = 0; j < importFiles.length; j += 1) {
-      const file = importFiles[j];
-      if (!fs.existsSync(codeFileParentPath + file)) {
-        // throw new Error(`Imported file in ${codeFile}: ${file} not found in ${codeFileParentPath}`);
-      }
-    }
-  }
-}
-
-/**
- * Currently, this function will catch "missing" imports, but only logs out on missing files.
- * @param {string} codeDirectory - Directory that contains the .code file (e.g., '/code/gm17/ft-burn')
- */
-async function filingChecks(codeDirectory) {
-  const files = await readdirAsync(codeDirectory);
-
-  // Looking for the .code file, e.g., ft-burn.out
-  let codeFileName;
-  let codeFileExt;
-  for (let j = 0; j < files.length; j += 1) {
-    codeFileName = files[j].substring(0, files[j].lastIndexOf('.'));
-    codeFileExt = files[j].substring(files[j].lastIndexOf('.') + 1, files[j].length);
-
-    // Output directory
-    // Looking for a .code file, but not out.code
-    if (codeFileExt === 'code' && codeFileName !== 'out') {
-      break;
-    }
-  }
-
-  await checkForImportFiles(`${codeDirectory}`, `${codeFileName}.${codeFileExt}`);
-}
+const mkdir = util.promisify(fs.mkdir);
 
 /**
  * @param {string} solFilePath
@@ -135,79 +61,91 @@ function keyExtractor(solFilePath) {
 }
 
 /**
- * Given a directory that contains a .code file (ignoring any out.code files), calls Zokrates compile,
- * setup and export verifier and outputs all the necessary Zokrates files in that same directory.
- * @param {String} directoryPath
- * @param {Boolean} suppress - Flag for logging out zokrates output or not.
+ * Given an output directory, generates all the files needed for a trusted setup.
+ *
+ * @param {String} outputDirectory - Directory to output all the files necessary
+ * @param {String} [codeName] - Optional parameter to compile a specific file (like ft-mint)
  */
-async function generateZokratesFiles(directoryPath) {
-  // Check to see if imports are present.
-  await filingChecks(directoryPath);
+async function generateZokratesFiles(outputDirectory, codeName) {
+  logger.info(`Setting up in directory ${outputDirectory}`);
 
-  const files = await readdirAsync(directoryPath);
+  const outputDirWithSlash = outputDirectory.endsWith('/')
+    ? outputDirectory
+    : `${outputDirectory}/`;
 
-  logger.info(`Setup for directory ${directoryPath}`);
+  // Path to code files within this module.
+  const gm17Path = path.join(__dirname, './gm17');
 
-  const directoryWithSlash = directoryPath.endsWith('/') ? directoryPath : `${directoryPath}/`;
+  // If there's a codeName, only compile that. Otherwise, compile everything.
+  const codeFiles = codeName ? [codeName] : await readdirAsync(gm17Path);
 
-  let codeFile;
-  // Look for a .code file that's not out.code. That's the file we're compiling.
-  for (let j = 0; j < files.length; j += 1) {
-    if (files[j].endsWith('.code') && files[j] !== 'out.code') {
-      codeFile = files[j];
-      break;
+  // Generate all code files. This function is non-concurrent on purpose.
+  // Running these functions concurrently is too much for most computers.
+  for (let i = 0; i < codeFiles.length; i += 1) {
+    const codeFile = codeFiles[i];
+
+    // Strip .code from code file name.
+    const codeFileName = codeFile.split('.')[0];
+    const codeFileDirectory = `${outputDirWithSlash}${codeFileName}`;
+
+    // Create a directory
+    try {
+      await mkdir(codeFileDirectory);
+    } catch (err) {
+      logger.error('Directory already existed, skipping creation');
     }
+
+    // Create files
+    logger.info('Compiling', `${outputDirWithSlash}${codeFile}`);
+
+    // // Generate out.code and out in the same directory.
+    const compileOutput = await compile(
+      `${gm17Path}/${codeFileName}.code`,
+      codeFileDirectory,
+      'out',
+      {
+        verbose: true,
+      },
+    );
+    logger.debug('Compile output:', compileOutput);
+    logger.info(`Finished compiling ${codeFileName}`);
+
+    logger.info(`Running setup on ${codeFileName}`);
+    // Generate verification.key and proving.key
+    const setupOutput = await setup(
+      `${codeFileDirectory}/out`,
+      codeFileDirectory,
+      'gm17',
+      'verification.key',
+      'proving.key',
+      { verbose: true },
+    );
+    logger.debug('Setup output:', setupOutput);
+    logger.info(`Finished setup for ${codeFileName}`);
+
+    logger.info(`Running export-verifier on ${codeFileName}`);
+    const exportVerifierOutput = await exportVerifier(
+      `${codeFileDirectory}/verification.key`,
+      codeFileDirectory,
+      'verifier.sol',
+      'gm17',
+      { verbose: true },
+    );
+    logger.debug('Export-verifier output:', exportVerifierOutput);
+    logger.info(`Finished export-verifier for ${codeFileName}`);
+
+    logger.verbose(`Extracting key from ${codeFileDirectory}/verifier.sol`);
+    const vkJson = await keyExtractor(`${codeFileDirectory}/verifier.sol`, true);
+
+    logger.info(`Writing ${codeFileDirectory}/${codeFile.split('.')[0]}-vk.json`);
+    // Create a JSON with the file name but without .code
+    fs.writeFileSync(`${codeFileDirectory}/${codeFile.split('.')[0]}-vk.json`, vkJson, err => {
+      if (err) {
+        logger.error(err);
+      }
+    });
+    logger.info(outputDirectory, 'is done setting up.');
   }
-
-  logger.info('Compiling', `${directoryWithSlash}${codeFile}`);
-
-  // Generate out.code and out in the same directory.
-  const compileOutput = await compile(
-    `${directoryWithSlash}${codeFile}`,
-    directoryWithSlash,
-    'out',
-    {
-      verbose: true,
-    },
-  );
-  logger.debug('Compile output:', compileOutput);
-  logger.info('Finished compiling at', directoryPath);
-
-  logger.info('Running setup on', directoryPath);
-  // Generate verification.key and proving.key
-  const setupOutput = await setup(
-    `${directoryWithSlash}out`,
-    directoryWithSlash,
-    'gm17',
-    'verification.key',
-    'proving.key',
-    { verbose: true },
-  );
-  logger.debug('Setup output:', setupOutput);
-  logger.info('Finished setup at', directoryPath);
-
-  logger.info('Running export-verifier at', directoryPath);
-  const exportVerifierOutput = await exportVerifier(
-    `${directoryWithSlash}/verification.key`,
-    directoryWithSlash,
-    'verifier.sol',
-    'gm17',
-    { verbose: true },
-  );
-  logger.debug('Export-verifier output:', exportVerifierOutput);
-  logger.info('Finished export-verifier at', directoryPath);
-
-  logger.verbose(`Extracting key from ${directoryWithSlash}verifier.sol`);
-  const vkJson = await keyExtractor(`${directoryWithSlash}verifier.sol`, true);
-
-  logger.info(`Writing ${directoryWithSlash}${codeFile.split('.')[0]}-vk.json`);
-  // Create a JSON with the file name but without .code
-  fs.writeFileSync(`${directoryWithSlash}${codeFile.split('.')[0]}-vk.json`, vkJson, err => {
-    if (err) {
-      logger.error(err);
-    }
-  });
-  logger.info(directoryPath, 'is done setting up.');
 }
 
 module.exports = generateZokratesFiles;
