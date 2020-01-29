@@ -666,8 +666,7 @@ async function simpleFungibleBatchTransfer(
   logger.debug('TRANSFER COMPLETE\n');
 
   return {
-    z_E: outputCommitments.map(item => item.commitment),
-    z_E_index: maxOutputCommitmentIndex,
+    maxOutputCommitmentIndex,
     txReceipt,
   };
 }
