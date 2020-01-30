@@ -14,7 +14,7 @@ const logger = require('./logger');
 
 /**
 Loads a verification key to the Verifier Registry
- * @param {string} vkDescription - Description of the 'functionality' that the vk represents. This string is interpreted by the smart contract which stores the vk's (a.k.a. the vkRegistry).
+ * @param {String} vkDescription - Description of action that the vk represents, i.e., "mint", "simpleBatchTransfer", "bunr"
  * @param {String} vkJsonFile - Path to vk file in JSON form
  * @param {Object} blockchainOptions
  * @param {Object} blockchainOptions.shieldJson - Compiled JSON of relevant Shield (i.e., NFTokenShield or FTokenShield)
@@ -23,6 +23,27 @@ Loads a verification key to the Verifier Registry
 */
 async function loadVk(vkDescription, vkJsonFile, blockchainOptions) {
   const { shieldJson, shieldAddress, account } = blockchainOptions;
+
+  // Shield contract expects a uint instead of the string we get.
+  let vkUint;
+  switch (vkDescription) {
+    case 'mint':
+      vkUint = 0;
+      break;
+    case 'transfer':
+      vkUint = 1;
+      break;
+    case 'burn':
+      vkUint = 2;
+      break;
+    case 'simpleBatchTransfer':
+      vkUint = 3;
+      break;
+    default:
+      // intentionally set an invalid enumUint that will fail (because currently only enums 0,1,2,3 exist in the shield contracts) in order to save users gas.
+      vkUint = 4;
+      break;
+  }
 
   logger.verbose(`Loading VK for ${vkJsonFile}`);
 
@@ -43,7 +64,7 @@ async function loadVk(vkDescription, vkJsonFile, blockchainOptions) {
 
   // upload the vk to the smart contract
   logger.debug('Registering verification key');
-  await vkRegistryInstance.registerVerificationKey(vk, vkDescription, {
+  await vkRegistryInstance.registerVerificationKey(vk, vkUint, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
