@@ -14,21 +14,21 @@ const logger = require('./logger');
 
 /**
 Loads a verification key to the Verifier Registry
- * @param {string} vkIdentifier - A 'key' against which the Shield Contract will store the vk. 'vkIdentifier's could (for example) be strings of the form 'mint', 'transfer', 'burn'; or integers of the form 0, 1, 2 (or some other unique identifier).
+ * @param {string} vkDescription - Description of the 'functionality' that the vk represents. This string is interpreted by the smart contract which stores the vk's (a.k.a. the vkRegistry).
  * @param {String} vkJsonFile - Path to vk file in JSON form
  * @param {Object} blockchainOptions
- * @param {Object} blockchainOptions.vkRegistryJson - Compiled JSON of verifier contract
- * @param {String} blockchainOptions.vkRegistryAddress - address of deployed verifier contract
+ * @param {Object} blockchainOptions.shieldJson - Compiled JSON of relevant Shield (i.e., NFTokenShield or FTokenShield)
+ * @param {String} blockchainOptions.shieldAddress - address of relevant Shield contract (i.e., NFTokenShield or FTokenShield)
  * @param {String} blockchainOptions.account - Account that will send the transactions
 */
-async function loadVk(vkIdentifier, vkJsonFile, blockchainOptions) {
-  const { vkRegistryJson, vkRegistryAddress, account } = blockchainOptions;
+async function loadVk(vkDescription, vkJsonFile, blockchainOptions) {
+  const { shieldJson, shieldAddress, account } = blockchainOptions;
 
   logger.verbose(`Loading VK for ${vkJsonFile}`);
 
-  const vkRegistry = contract(vkRegistryJson);
+  const vkRegistry = contract(shieldJson);
   vkRegistry.setProvider(Web3.connect());
-  const vkRegistryInstance = await vkRegistry.at(vkRegistryAddress);
+  const vkRegistryInstance = await vkRegistry.at(shieldAddress);
 
   // Get VKs from the /code/gm17 directory and convert them into Solidity uints.
   let vk = await new Promise((resolve, reject) => {
@@ -43,7 +43,7 @@ async function loadVk(vkIdentifier, vkJsonFile, blockchainOptions) {
 
   // upload the vk to the smart contract
   logger.debug('Registering verification key');
-  await vkRegistryInstance.registerVerificationKey(vk, vkIdentifier, {
+  await vkRegistryInstance.registerVerificationKey(vk, vkDescription, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
