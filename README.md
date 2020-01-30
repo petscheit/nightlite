@@ -8,6 +8,7 @@ protocol on other applications.
 
 - [Installation and Configuration](#installation-and-configuration)
 - [Trusted Setup](#trusted-setup)
+- [ZKP Public/Private Keys](#zkp-publicprivate-keys)
 - [Deploy Necessary Contracts](#deploy-necessary-contracts)
 - [Deploy VKs to the blockchain](#deploy-vks-to-the-blockchain)
 - [Run Nightfall Functions](#run-nightfall-functions)
@@ -45,8 +46,8 @@ COPY --from=builder /home/zokrates/.zokrates\* /app/stdlib
 ```
 
 `Nightlite` defaults logging levels to `info`, but if you want more detailed console logs, you can
-set the logging level to `verbose`, or for even more detail, `debug` by calling
-`logger.setLogLevel('verbose')`
+set the logging level to `verbose`, or for even more detail, `debug` by setting an environment
+variable `NIGHTLITE_LOG_LEVEL` to DEBUG
 
 Finally, on startup, your application should run `provider.connect(<ProviderURL>)`. (e.g.,
 `provider.connect('ws://ganache:8545')`) This will set the provider that all Nightfall smart
@@ -65,6 +66,22 @@ documentation in `setup/generateZokratesFiles()` for usage instructions.
 
 The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be
 re-run for a given .code file whenever it is changed.
+
+## ZKP Public/Private Keys
+
+In order to make private transactions, you will need a ZKP public/private key pair. This is separate
+from the typical Ethereum public/private key pair.
+
+The ZKP public/private keys are both 32 bytes long. As a string, this a 66 character value (0x + 64
+characters).
+
+You can generate a private key by generating any random 32 byte string (you can use our
+`utils.randomHex(32)` function).
+
+You can generate your matching public key by hashing it (you can use our `utils.hash()` function).
+
+Just as with typical Ethereum key pairs, losing your private key can mean the loss of any
+commitments you hold.
 
 ## Deploy Necessary Contracts
 
@@ -125,5 +142,15 @@ Here are some possibilities:
    `setProvider()` on startup).
 
 ### Acknowledgements
+
+Team Nightfall thanks those who have indirectly contributed to it, with the ideas and tools that
+they have shared with the community:
+
+- [ZoKrates](https://hub.docker.com/r/michaelconnor/zok)
+- [Libsnark](https://github.com/scipr-lab/libsnark)
+- [Zcash](https://github.com/zcash/zcash)
+- [GM17](https://eprint.iacr.org/2017/540.pdf)
+- [0xcert](https://github.com/0xcert/ethereum-erc721/)
+- [OpenZeppelin](https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/token/ERC20/ERC20.sol)
 
 Thanks to John Sterlacci for the name `Nightlite`.
