@@ -25,7 +25,6 @@ const erc20Interface = require('./contracts/ERC20Interface.json');
  * @param {String} amount - the value of the coin
  * @param {String} zkpPublicKey - The minter's ZKP public key. Note that this is NOT the same as their Ethereum address.
  * @param {String} salt - Alice's token serial number as a hex string
- * @param {String} vkId
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
@@ -33,7 +32,7 @@ const erc20Interface = require('./contracts/ERC20Interface.json');
  * @returns {String} commitment - Commitment of the minted coins
  * @returns {Number} commitmentIndex
  */
-async function mint(amount, zkpPublicKey, salt, vkId, blockchainOptions, zokratesOptions) {
+async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
 
@@ -129,11 +128,10 @@ async function mint(amount, zkpPublicKey, salt, vkId, blockchainOptions, zokrate
   logger.debug(proof);
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
-  logger.debug(`vkId: ${vkId}`);
 
   // Mint the commitment
   logger.debug('Approving ERC-20 spend from: ', fTokenShieldInstance.address);
-  const txReceipt = await fTokenShieldInstance.mint(proof, publicInputs, vkId, amount, commitment, {
+  const txReceipt = await fTokenShieldInstance.mint(proof, publicInputs, amount, commitment, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
@@ -177,7 +175,6 @@ async function transfer(
   _outputCommitments,
   receiverZkpPublicKey,
   senderZkpPrivateKey,
-  vkId,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -451,13 +448,10 @@ async function transfer(
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
 
-  logger.debug(`vkId: ${vkId}`);
-
   // Transfers commitment
   const txReceipt = await fTokenShieldInstance.transfer(
     proof,
     publicInputs,
-    vkId,
     root,
     inputCommitments[0].nullifier,
     inputCommitments[1].nullifier,
@@ -510,7 +504,6 @@ async function simpleFungibleBatchTransfer(
   _outputCommitments,
   receiversPublicKeys,
   senderSecretKey,
-  vkId,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -640,13 +633,10 @@ async function simpleFungibleBatchTransfer(
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
 
-  logger.debug(`vkId: ${vkId}`);
-
   // send the token to Bob by transforming the commitment
   const txReceipt = await fTokenShieldInstance.simpleBatchTransfer(
     proof,
     publicInputs,
-    vkId,
     root,
     inputCommitment.nullifier,
     outputCommitments.map(item => item.commitment),
@@ -692,7 +682,6 @@ async function burn(
   salt,
   commitment,
   commitmentIndex,
-  vkId,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -816,13 +805,11 @@ async function burn(
   logger.debug(proof);
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
-  logger.debug(`vkId: ${vkId}`);
 
   // Burn the commitment and return tokens to the payTo account.
   const txReceipt = await fTokenShieldInstance.burn(
     proof,
     publicInputs,
-    vkId,
     root,
     nullifier,
     amount,

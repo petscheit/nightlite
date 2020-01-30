@@ -21,7 +21,6 @@ const erc721Interface = require('./contracts/ERC721Interface.json');
  * @param {string} tokenId - the asset token
  * @param {string} zkpPublicKey - ZKP public key, see README for more info
  * @param {string} salt - Alice's token serial number as a hex string
- * @param {Object} vkId - vkId for NFT's MintNFToken
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.nfTokenShieldJson - ABI of nfTokenShield
  * @param {String} blockchainOptions.nfTokenShieldAddress - Address of deployed nfTokenShieldContract
@@ -36,7 +35,7 @@ const erc721Interface = require('./contracts/ERC721Interface.json');
  * @returns {String} commitment
  * @returns {Number} commitmentIndex - the index of the token within the Merkle Tree.  This is required for later transfers/joins so that Alice knows which 'chunks' of the Merkle Tree she needs to 'get' from the NFTokenShield contract in order to calculate a path.
  */
-async function mint(tokenId, zkpPublicKey, salt, vkId, blockchainOptions, zokratesOptions) {
+async function mint(tokenId, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { nfTokenShieldJson, nfTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
 
@@ -127,21 +126,13 @@ async function mint(tokenId, zkpPublicKey, salt, vkId, blockchainOptions, zokrat
   logger.debug(proof);
   logger.debug('public inputs:');
   logger.debug(publicInputs);
-  logger.debug(`vkId: ${vkId}`);
 
   // Mint the commitment
-  const txReceipt = await nfTokenShieldInstance.mint(
-    proof,
-    publicInputs,
-    vkId,
-    tokenId,
-    commitment,
-    {
-      from: account,
-      gas: 6500000,
-      gasPrice: config.GASPRICE,
-    },
-  );
+  const txReceipt = await nfTokenShieldInstance.mint(proof, publicInputs, tokenId, commitment, {
+    from: account,
+    gas: 6500000,
+    gasPrice: config.GASPRICE,
+  });
   utils.gasUsedStats(txReceipt, 'mint');
 
   const newLeafLog = txReceipt.logs.filter(log => {
@@ -164,7 +155,6 @@ async function mint(tokenId, zkpPublicKey, salt, vkId, blockchainOptions, zokrat
  * @param {String} senderZkpPrivateKey
  * @param {String} commitment - Commitment of token being sent
  * @param {Integer} commitmentIndex - the position of commitment in the on-chain Merkle Tree
- * @param {String} vkId
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.nfTokenShieldJson - ABI of nfTokenShield
  * @param {String} blockchainOptions.nfTokenShieldAddress - Address of deployed nfTokenShieldContract
@@ -181,7 +171,6 @@ async function transfer(
   senderZkpPrivateKey,
   commitment,
   commitmentIndex,
-  vkId,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -314,12 +303,10 @@ async function transfer(
   logger.debug(proof);
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
-  logger.debug(`vkId: ${vkId}`);
 
   const txReceipt = await nfTokenShieldInstance.transfer(
     proof,
     publicInputs,
-    vkId,
     root,
     nullifier,
     outputCommitment,
@@ -352,7 +339,6 @@ async function transfer(
  * @param {String} salt - salt of token
  * @param {String} commitment
  * @param {String} commitmentIndex
- * @param {String} vkId
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.nfTokenShieldJson - ABI of nfTokenShield
  * @param {String} blockchainOptions.nfTokenShieldAddress - Address of deployed nfTokenShieldContract
@@ -364,7 +350,6 @@ async function burn(
   salt,
   commitment,
   commitmentIndex,
-  vkId,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -480,13 +465,11 @@ async function burn(
   logger.debug(proof);
   logger.debug('publicInputs:');
   logger.debug(publicInputs);
-  logger.debug(`vkId: ${vkId}`);
 
   // Burns commitment and returns token to payTo
   const txReceipt = await nfTokenShieldInstance.burn(
     proof,
     publicInputs,
-    vkId,
     root,
     nullifier,
     tokenId,
