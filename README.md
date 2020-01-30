@@ -10,7 +10,7 @@ protocol on other applications.
 - [Trusted Setup](#trusted-setup)
 - [ZKP Public/Private Keys](#zkp-publicprivate-keys)
 - [Deploy Necessary Contracts](#deploy-necessary-contracts)
-- [Deploy VKs to Registry](#deploy-vks-to-registry)
+- [Deploy VKs to the blockchain](#deploy-vks-to-the-blockchain)
 - [Run Nightfall Functions](#run-nightfall-functions)
 - [To Do](#to-do)
   - [Passing Providers](#passing-providers)
@@ -101,17 +101,16 @@ truffle deployments and use web3 or another similar library in the future.
 FToken and NFTokenMetadata are placeholder ERC721/ERC20 contracts. In order to replace them, you
 need to swap the FToken/NFTokenMetadata contracts in this migration script.
 
-## Deploy VKs to Registry
+## Deploy VKs to the blockchain
 
-The VKs that we generated earlier in the `Trusted Setup` step need to be deployed to the Registry.
-The function `loadVk()` loads the `vk.json` files we made in the Trusted Setup stage to the
-VerifierRegistry contract, and then returns vkIds.
+The Verification Keys that we generated earlier in the `Trusted Setup` step need to be deployed to
+the blockchain. We deploy them directly to the Shield Contracts. The function `loadVk()` loads the
+`vk.json` files we made in the Trusted Setup stage to the Shield contract(s).
 
-VkIds are links to the verification keys that live on the VerifierRegistry. By using VKIds instead
-of the full VKs, its more gas efficient.
-
-`loadVk()` must be called on each `vk.json`, and the resulting vkIds must be saved. Those VKs must
-then be uploaded to the FTokenShield and NFTokenShield contracts via their `setVKIds()` functions.
+`loadVk()` must be called on each `vk.json`. Those VKs must then be uploaded to the FTokenShield and
+NFTokenShield contracts via their `registerVerificationKey()` functions. The Shield contract keeps
+track of which verification key relates to which function (e.g. it stores which verification key
+relates to a 'transfer').
 
 A sample implementation can be found in Nightfall's `zkp/src/vk-controller.js`, in the function
 `initializeVks()`.
