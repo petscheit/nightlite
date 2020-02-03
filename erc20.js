@@ -95,7 +95,7 @@ function decryptTransaction(txReceipt, { type, guessers }) {
 /**
  * Mint a coin
  * @param {String} amount - the value of the coin
- * @param {String} ownerPublicKey - Alice's public key
+ * @param {String} zkpPublicKey - Alice's public key
  * @param {String} salt - Alice's token serial number as a hex string
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
@@ -104,7 +104,7 @@ function decryptTransaction(txReceipt, { type, guessers }) {
  * @returns {String} commitment - Commitment of the minted coins
  * @returns {Number} commitmentIndex
  */
-async function mint(amount, ownerPublicKey, salt, blockchainOptions, zokratesOptions) {
+async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
 
@@ -128,24 +128,19 @@ async function mint(amount, ownerPublicKey, salt, blockchainOptions, zokratesOpt
   logger.debug('Finding the relevant Shield and Verifier contracts');
 
   // Calculate new arguments for the proof:
-  const commitment = utils.concatenateThenHash(amount, ownerPublicKey, salt);
+  const commitment = utils.concatenateThenHash(amount, zkpPublicKey, salt);
 
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
   const pt = Math.ceil((config.LEAF_HASHLENGTH * 8) / config.ZOKRATES_PACKING_SIZE); // packets in bits
   logger.debug('amount: ', `${amount} : `, utils.hexToFieldPreserve(amount, p, 1));
-  logger.debug(
-    'publicKey: ',
-    ownerPublicKey,
-    ' : ',
-    utils.hexToFieldPreserve(ownerPublicKey, p, pt),
-  );
+  logger.debug('publicKey: ', zkpPublicKey, ' : ', utils.hexToFieldPreserve(zkpPublicKey, p, pt));
   logger.debug('salt: ', salt, ' : ', utils.hexToFieldPreserve(salt, p, pt));
 
   logger.debug('New Proof Variables:');
   logger.debug('commitment: ', commitment, ' : ', utils.hexToFieldPreserve(commitment, p, pt));
 
-  const publicInputHash = utils.concatenateThenHash(amount, commitment, ownerPublicKey);
+  const publicInputHash = utils.concatenateThenHash(amount, commitment, zkpPublicKey);
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -159,7 +154,7 @@ async function mint(amount, ownerPublicKey, salt, blockchainOptions, zokratesOpt
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
     new Element(amount, 'field', 128, 1),
-    new Element(ownerPublicKey, 'field'),
+    new Element(zkpPublicKey, 'field'),
     new Element(salt, 'field'),
     new Element(commitment, 'field'),
   ]);
@@ -216,7 +211,7 @@ async function mint(amount, ownerPublicKey, salt, blockchainOptions, zokratesOpt
     publicInputs,
     amount,
     commitment,
-    ownerPublicKey,
+    zkpPublicKey,
     {
       from: account,
       gas: 6500000,
@@ -768,7 +763,7 @@ async function simpleFungibleBatchTransfer(
  * This function burns a commitment, i.e. it recovers ERC-20 into your
  * account. All values are hex strings.
  * @param {string} amount - the value of the commitment in hex (i.e. the amount you are burning)
- * @param {string} receiverSecretKey - the secret key of the person doing the burning (in hex)
+ * @param {string} receiverZkpPrivateKey - the private key of the person doing the burning (in hex)
  * @param {string} salt - the random nonce used in the commitment
  * @param {string} commitment - the value of the commitment being burned
  * @param {string} commitmentIndex - the index of the commitment in the Merkle Tree
@@ -780,7 +775,7 @@ async function simpleFungibleBatchTransfer(
  */
 async function burn(
   amount,
-  receiverSecretKey,
+  receiverZkpPrivateKey,
   salt,
   commitment,
   commitmentIndex,
@@ -812,9 +807,9 @@ async function burn(
   const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
 
   // Calculate new arguments for the proof:
-  const nullifier = utils.concatenateThenHash(salt, receiverSecretKey);
+  const nullifier = utils.concatenateThenHash(salt, receiverZkpPrivateKey);
   // compute the encryption of the transfer values
-  const receiverPublicKey = utils.hash(receiverSecretKey); // TODO this is really the sender - rename
+  const receiverPublicKey = utils.hash(receiverZkpPrivateKey); // TODO this is really the sender - rename
   const randomSecret = BigInt(await utils.randomHex(27)); // ideally needs to be smaller than Fq TODO - try 32 bytes when it works
   const encryption = enc(randomSecret, [receiverPublicKey]);
 
@@ -843,7 +838,10 @@ async function burn(
   const p = config.ZOKRATES_PACKING_SIZE;
   logger.debug(`amount: ${amount} : ${utils.hexToFieldPreserve(amount, p)}`);
   logger.debug(
-    `receiverSecretKey: ${receiverSecretKey} : ${utils.hexToFieldPreserve(receiverSecretKey, p)}`,
+    `receiverZkpPrivateKey: ${receiverZkpPrivateKey} : ${utils.hexToFieldPreserve(
+      receiverZkpPrivateKey,
+      p,
+    )}`,
   );
   logger.debug(`salt: ${salt} : ${utils.hexToFieldPreserve(salt, p)}`);
   logger.debug(`payTo: ${payTo} : ${utils.hexToFieldPreserve(payTo, p)}`);
@@ -889,7 +887,7 @@ async function burn(
     new Element(publicInputHash, 'field', 248, 1),
     new Element(payTo, 'field'),
     new Element(amount, 'field', 128, 1),
-    new Element(receiverSecretKey, 'field'),
+    new Element(receiverZkpPrivateKey, 'field'),
     new Element(salt, 'field'),
     ...siblingPathElements.slice(1),
     new Element(commitmentIndex, 'field', 128, 1), // the binary decomposition of a leafIndex gives its path's 'left-right' positions up the tree. The decomposition is done inside the circuit.,
