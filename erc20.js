@@ -16,26 +16,99 @@ const logger = require('./logger');
 const Element = require('./Element');
 const Web3 = require('./provider');
 const erc20Interface = require('./contracts/ERC20Interface.json');
+const { enc, AUTHORITY_PUBLIC_KEYS, dec, bruteForce } = require('./elgamal');
+const { getPublicKeyTreeData } = require('./public-key-tree');
 
 /**
- * Mint a fungible token commitment.
- *
- * Note that `ownerPublicKey` is NOT the same as the user's Ethereum address. This is a 32 byte hex that is unique to a given user.
- *
+Blacklist an address to prevent zkp operations.  Note that this can only be called
+by the owner of TokenShield.sol, otherwise it will throw
+*/
+async function blacklist(malfeasantAddress, blockchainOptions) {
+  const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
+  const account = utils.ensure0x(blockchainOptions.account);
+  const fTokenShield = contract(fTokenShieldJson);
+  fTokenShield.setProvider(Web3.connect());
+  const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
+  fTokenShieldInstance.blacklistAddress(malfeasantAddress, {
+    from: account,
+    gas: 6500000,
+    gasPrice: config.GASPRICE,
+  });
+}
+/**
+Un-blacklist a previously blacklisted address to enable zkp operations.
+Note that this can only be called by the owner of TokenShield.sol, otherwise it will throw
+*/
+async function unblacklist(blacklistedAddress, blockchainOptions) {
+  const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
+  const account = utils.ensure0x(blockchainOptions.account);
+  const fTokenShield = contract(fTokenShieldJson);
+  fTokenShield.setProvider(Web3.connect());
+  const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
+  fTokenShieldInstance.unblacklistAddress(blacklistedAddress, {
+    from: account,
+    gas: 6500000,
+    gasPrice: config.GASPRICE,
+  });
+}
+/**
+Decrypts the El-Gamal encrypted data from zkp transaction.  The private keys
+must be set within the el-gamal module first and the txReceipt must have resolved
+to a full object, not just a transaction hash i.e. it must have been mined.
+When a curve point has been decrypted (and the total number of points depends on the type)
+we need to map that curve point back to the original message.
+That's tricky because it will have been created by scalar multiplying the message to generate
+the curve point, and thus to recover the message we need to invert a discrete logarithm. That's
+doable because, fortunately, the number of possible messages isn't too big but we need a way
+to guess the messages.  That's where our array of guessers come in.  There's one guesser for each
+curve point and it must implement the iterable interface so that we can call it in a standard
+way to get the next guess (a simple guesser could be just an array of possible solutions, therefore,
+because the array object implements the iterable interface; a generator function is another good
+choice where we have a known sequence of guesses to make such as all the numbers between 0 and 1 million)
+@param {object} txReceipt - the transaction receipt from the transaction of interest
+@param {string} type - the type of transaction we are trying to decrypt ('Burn', 'Transfer')
+@param {array} guessers - an array of generators that generate guesses for possible values of each messag
+*/
+function decryptTransaction(txReceipt, { type, guessers }) {
+  if (!config.ALLOWED_DECRYPTION_TYPES[type])
+    throw new Error('Unknown transaction type for decryption');
+  const publicInputLog = txReceipt.logs.filter(log => {
+    return log.event === type;
+  });
+  const { publicInputs } = publicInputLog[0].args;
+  const c = [];
+  for (
+    let i = config.ALLOWED_DECRYPTION_TYPES[type].PUBLIC_INPUTS_START_POSITION;
+    i < config.ALLOWED_DECRYPTION_TYPES[type].PUBLIC_INPUTS_END_POSITION;
+    i += 2
+  ) {
+    c.push([BigInt(publicInputs[i]), BigInt(publicInputs[i + 1])]);
+  }
+  const m = dec(c);
+  const decrypt = [];
+  for (let i = 0; i < m.length; i++) {
+    decrypt.push(bruteForce(m[i], guessers[i]));
+  }
+  return decrypt;
+}
+
+/**
+ * Mint a coin
  * @param {String} amount - the value of the coin
- * @param {String} zkpPublicKey - The minter's ZKP public key. Note that this is NOT the same as their Ethereum address.
+ * @param {String} ownerPublicKey - Alice's public key
  * @param {String} salt - Alice's token serial number as a hex string
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
- * @param {String} blockchainOptions.account - Account that is sending these transactions. Must be token owner.
+ * @param {String} blockchainOptions.account - Account that is sending these transactions
  * @returns {String} commitment - Commitment of the minted coins
  * @returns {Number} commitmentIndex
  */
-async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
+async function mint(amount, ownerPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
 
+  logger.debug('zokratesOptions', zokratesOptions);
   const {
     codePath,
     outputDirectory,
@@ -52,20 +125,27 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 
   logger.debug('\nIN MINT...');
 
+  logger.debug('Finding the relevant Shield and Verifier contracts');
+
   // Calculate new arguments for the proof:
-  const commitment = utils.concatenateThenHash(amount, zkpPublicKey, salt);
+  const commitment = utils.concatenateThenHash(amount, ownerPublicKey, salt);
 
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
   const pt = Math.ceil((config.LEAF_HASHLENGTH * 8) / config.ZOKRATES_PACKING_SIZE); // packets in bits
   logger.debug('amount: ', `${amount} : `, utils.hexToFieldPreserve(amount, p, 1));
-  logger.debug('publicKey: ', zkpPublicKey, ' : ', utils.hexToFieldPreserve(zkpPublicKey, p, pt));
+  logger.debug(
+    'publicKey: ',
+    ownerPublicKey,
+    ' : ',
+    utils.hexToFieldPreserve(ownerPublicKey, p, pt),
+  );
   logger.debug('salt: ', salt, ' : ', utils.hexToFieldPreserve(salt, p, pt));
 
   logger.debug('New Proof Variables:');
   logger.debug('commitment: ', commitment, ' : ', utils.hexToFieldPreserve(commitment, p, pt));
 
-  const publicInputHash = utils.concatenateThenHash(amount, commitment);
+  const publicInputHash = utils.concatenateThenHash(amount, commitment, ownerPublicKey);
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -79,7 +159,7 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
     new Element(amount, 'field', 128, 1),
-    new Element(zkpPublicKey, 'field'),
+    new Element(ownerPublicKey, 'field'),
     new Element(salt, 'field'),
     new Element(commitment, 'field'),
   ]);
@@ -131,11 +211,18 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 
   // Mint the commitment
   logger.debug('Approving ERC-20 spend from: ', fTokenShieldInstance.address);
-  const txReceipt = await fTokenShieldInstance.mint(proof, publicInputs, amount, commitment, {
-    from: account,
-    gas: 6500000,
-    gasPrice: config.GASPRICE,
-  });
+  const txReceipt = await fTokenShieldInstance.mint(
+    proof,
+    publicInputs,
+    amount,
+    commitment,
+    ownerPublicKey,
+    {
+      from: account,
+      gas: 6500000,
+      gasPrice: config.GASPRICE,
+    },
+  );
   utils.gasUsedStats(txReceipt, 'mint');
 
   const newLeafLog = txReceipt.logs.filter(log => {
@@ -149,7 +236,6 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
     account,
     (await fTokenInstance.balanceOf.call(account)).toNumber(),
   );
-
   logger.debug('Mint output: [zA, zAIndex]:', commitment, commitmentIndex.toString());
   logger.debug('MINT COMPLETE\n');
 
@@ -161,8 +247,8 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
  * @param {Array} inputCommitments - Array of two commitments owned by the sender.
  * @param {Array} outputCommitments - Array of two commitments.
  * Currently the first is sent to the receiverPublicKey, and the second is sent to the sender.
- * @param {String} receiverZkpPublicKey - Receiver's Zkp Public Key
- * @param {String} senderZkpPrivateKey - Private key of the sender's
+ * @param {String} receiverPublicKey - Public key of the first outputCommitment
+ * @param {String} senderSecretKey
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
@@ -173,8 +259,8 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 async function transfer(
   _inputCommitments,
   _outputCommitments,
-  receiverZkpPublicKey,
-  senderZkpPrivateKey,
+  receiverPublicKey,
+  senderSecretKey,
   blockchainOptions,
   zokratesOptions,
 ) {
@@ -210,19 +296,19 @@ async function transfer(
     throw new Error(`Input commitments' values are too large`);
 
   // Calculate new arguments for the proof:
-  const senderPublicKey = utils.hash(senderZkpPrivateKey);
+  const senderPublicKey = utils.hash(senderSecretKey);
   inputCommitments[0].nullifier = utils.concatenateThenHash(
     inputCommitments[0].salt,
-    senderZkpPrivateKey,
+    senderSecretKey,
   );
   inputCommitments[1].nullifier = utils.concatenateThenHash(
     inputCommitments[1].salt,
-    senderZkpPrivateKey,
+    senderSecretKey,
   );
 
   outputCommitments[0].commitment = utils.concatenateThenHash(
     outputCommitments[0].value,
-    receiverZkpPublicKey,
+    receiverPublicKey,
     outputCommitments[0].salt,
   );
   outputCommitments[1].commitment = utils.concatenateThenHash(
@@ -230,6 +316,18 @@ async function transfer(
     senderPublicKey,
     outputCommitments[1].salt,
   );
+
+  // compute the encryption of the transfer values
+  const randomSecret = BigInt(await utils.randomHex(27)); // ideally needs to be smaller than Fq TODO - try 32 bytes when it works
+  const encryption = enc(randomSecret, [
+    outputCommitments[0].value,
+    senderPublicKey,
+    receiverPublicKey,
+  ]);
+
+  // compute the sibling path for the zkp public key Merkle tree used for whitelisting
+  const publicKeyTreeData = await getPublicKeyTreeData(fTokenShieldInstance, senderPublicKey);
+  logger.debug('Public key sibling path', publicKeyTreeData.siblingPath);
 
   // Get the sibling-path from the token commitments (leaves) to the root. Express each node as an Element class.
   inputCommitments[0].siblingPath = await merkleTree.getSiblingPath(
@@ -272,7 +370,6 @@ async function transfer(
     element => new Element(element, 'field', config.NODE_HASHLENGTH * 8, 1),
   ); // we truncate to 216 bits - sending the whole 256 bits will overflow the prime field
 
-  // console logging:
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
   logger.debug(
@@ -300,10 +397,7 @@ async function transfer(
     )}`,
   );
   logger.debug(
-    `receiverPublicKey: ${receiverZkpPublicKey} : ${utils.hexToFieldPreserve(
-      receiverZkpPublicKey,
-      p,
-    )}`,
+    `receiverPublicKey: ${receiverPublicKey} : ${utils.hexToFieldPreserve(receiverPublicKey, p)}`,
   );
   logger.debug(
     `inputCommitments[0].salt: ${inputCommitments[0].salt} : ${utils.hexToFieldPreserve(
@@ -330,7 +424,7 @@ async function transfer(
     )}`,
   );
   logger.debug(
-    `senderSecretKey: ${senderZkpPrivateKey} : ${utils.hexToFieldPreserve(senderZkpPrivateKey, p)}`,
+    `senderSecretKey: ${senderSecretKey} : ${utils.hexToFieldPreserve(senderSecretKey, p)}`,
   );
   logger.debug(
     `inputCommitments[0].commitment: ${inputCommitments[0].commitment} : ${utils.hexToFieldPreserve(
@@ -374,14 +468,23 @@ async function transfer(
   logger.debug(`inputCommitments[1].siblingPath:`, inputCommitments[1].siblingPath);
   logger.debug(`inputCommitments[0].commitmentIndex:`, inputCommitments[0].commitmentIndex);
   logger.debug(`inputCommitments[1].commitmentIndex:`, inputCommitments[1].commitmentIndex);
+  logger.debug(`public key tree leaf index:`, publicKeyTreeData.leafIndex);
+  logger.debug(`sender public key`, senderPublicKey);
 
-  const publicInputHash = utils.concatenateThenHash(
+  const publicInputsArray = [
     root,
     inputCommitments[0].nullifier,
     inputCommitments[1].nullifier,
     outputCommitments[0].commitment,
     outputCommitments[1].commitment,
-  );
+    publicKeyTreeData.siblingPath[0],
+    ...encryption.flat().map(e => `0x${e.toString(16).padStart(64, '0')}`), // convert to hex string for sha hash
+    ...AUTHORITY_PUBLIC_KEYS.flat().map(e => `0x${e.toString(16).padStart(64, '0')}`),
+  ];
+
+  logger.debug('array of public inputs', publicInputsArray);
+
+  const publicInputHash = utils.concatenateThenHash(...publicInputsArray);
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -392,10 +495,12 @@ async function transfer(
   // compute the proof
   logger.debug('Computing witness...');
 
+  logger.debug('encryption', encryption);
+
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
     new Element(inputCommitments[0].value, 'field', 128, 1),
-    new Element(senderZkpPrivateKey, 'field'),
+    new Element(senderSecretKey, 'field'),
     new Element(inputCommitments[0].salt, 'field'),
     ...inputCommitments[0].siblingPathElements.slice(1),
     new Element(inputCommitments[0].commitmentIndex, 'field', 128, 1), // the binary decomposition of a leafIndex gives its path's 'left-right' positions up the tree. The decomposition is done inside the circuit.,
@@ -406,13 +511,19 @@ async function transfer(
     new Element(inputCommitments[0].nullifier, 'field'),
     new Element(inputCommitments[1].nullifier, 'field'),
     new Element(outputCommitments[0].value, 'field', 128, 1),
-    new Element(receiverZkpPublicKey, 'field'),
+    new Element(receiverPublicKey, 'field'),
     new Element(outputCommitments[0].salt, 'field'),
     new Element(outputCommitments[0].commitment, 'field'),
     new Element(outputCommitments[1].value, 'field', 128, 1),
     new Element(outputCommitments[1].salt, 'field'),
     new Element(outputCommitments[1].commitment, 'field'),
     new Element(root, 'field'),
+    new Element(BigInt(publicKeyTreeData.siblingPath[0]), 'scalar'),
+    ...publicKeyTreeData.siblingPath.slice(1).map(f => new Element(BigInt(f), 'scalar')),
+    new Element(BigInt(publicKeyTreeData.leafIndex), 'scalar'),
+    ...encryption.flat().map(f => new Element(f, 'scalar')),
+    ...AUTHORITY_PUBLIC_KEYS.flat().map(f => new Element(f, 'scalar')), // the double mapping is because each element of the key array is an array (representing an (x,y) curve point)
+    new Element(randomSecret, 'scalar'),
   ]);
 
   logger.debug(
@@ -439,24 +550,14 @@ async function transfer(
 
   logger.debug('Transferring within the Shield contract');
 
-  const publicInputs = utils.formatInputsForZkSnark([
-    new Element(publicInputHash, 'field', 248, 1),
-  ]);
-
   logger.debug('proof:');
   logger.debug(proof);
-  logger.debug('publicInputs:');
-  logger.debug(publicInputs);
 
   // Transfers commitment
   const txReceipt = await fTokenShieldInstance.transfer(
     proof,
-    publicInputs,
-    root,
-    inputCommitments[0].nullifier,
-    inputCommitments[1].nullifier,
-    outputCommitments[0].commitment,
-    outputCommitments[1].commitment,
+    utils.formatInputsForZkSnark([new Element(publicInputHash, 'field', 248, 1)]),
+    publicInputsArray,
     {
       from: account,
       gas: 6500000,
@@ -546,7 +647,7 @@ async function simpleFungibleBatchTransfer(
   // Calculate new arguments for the proof:
   inputCommitment.nullifier = utils.concatenateThenHash(inputCommitment.salt, senderSecretKey);
 
-  for (let i = 0; i < outputCommitments.length; i += 1) {
+  for (let i = 0; i < outputCommitments.length; i++) {
     outputCommitments[i].commitment = utils.concatenateThenHash(
       outputCommitments[i].value,
       receiversPublicKeys[i],
@@ -610,7 +711,7 @@ async function simpleFungibleBatchTransfer(
   logger.debug('Generating proof...');
   await zokrates.generateProof(pkPath, codePath, `${outputDirectory}/witness`, provingScheme, {
     createFile: createProofJson,
-    directory: outputDirectory,
+    directory: `./zokrates compute-witness -a ${allInputs.join(' ')} -i gm17/ft-batch-transfer/out`,
     fileName: proofName,
   });
 
@@ -657,7 +758,8 @@ async function simpleFungibleBatchTransfer(
   logger.debug('TRANSFER COMPLETE\n');
 
   return {
-    maxOutputCommitmentIndex,
+    z_E: outputCommitments.map(item => item.commitment),
+    z_E_index: maxOutputCommitmentIndex,
     txReceipt,
   };
 }
@@ -666,7 +768,7 @@ async function simpleFungibleBatchTransfer(
  * This function burns a commitment, i.e. it recovers ERC-20 into your
  * account. All values are hex strings.
  * @param {string} amount - the value of the commitment in hex (i.e. the amount you are burning)
- * @param {string} receiverZkpPrivateKey - the secret key of the person doing the burning (in hex)
+ * @param {string} receiverSecretKey - the secret key of the person doing the burning (in hex)
  * @param {string} salt - the random nonce used in the commitment
  * @param {string} commitment - the value of the commitment being burned
  * @param {string} commitmentIndex - the index of the commitment in the Merkle Tree
@@ -678,7 +780,7 @@ async function simpleFungibleBatchTransfer(
  */
 async function burn(
   amount,
-  receiverZkpPrivateKey,
+  receiverSecretKey,
   salt,
   commitment,
   commitmentIndex,
@@ -710,7 +812,15 @@ async function burn(
   const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
 
   // Calculate new arguments for the proof:
-  const nullifier = utils.concatenateThenHash(salt, receiverZkpPrivateKey);
+  const nullifier = utils.concatenateThenHash(salt, receiverSecretKey);
+  // compute the encryption of the transfer values
+  const receiverPublicKey = utils.hash(receiverSecretKey); // TODO this is really the sender - rename
+  const randomSecret = BigInt(await utils.randomHex(27)); // ideally needs to be smaller than Fq TODO - try 32 bytes when it works
+  const encryption = enc(randomSecret, [receiverPublicKey]);
+
+  // compute the sibling path for the zkp public key Merkle tree used for whitelisting
+  const publicKeyTreeData = await getPublicKeyTreeData(fTokenShieldInstance, receiverPublicKey);
+  logger.debug('Public key sibling path', publicKeyTreeData.siblingPath);
 
   // Get the sibling-path from the token commitments (leaves) to the root. Express each node as an Element class.
   const siblingPath = await merkleTree.getSiblingPath(
@@ -728,15 +838,12 @@ async function burn(
     nodeValue => new Element(nodeValue, 'field', config.NODE_HASHLENGTH * 8, 1),
   ); // we truncate to 216 bits - sending the whole 256 bits will overflow the prime field
 
-  // Summarise values in the console:
+  // Summarise values in the logger:
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
   logger.debug(`amount: ${amount} : ${utils.hexToFieldPreserve(amount, p)}`);
   logger.debug(
-    `receiverSecretKey: ${receiverZkpPrivateKey} : ${utils.hexToFieldPreserve(
-      receiverZkpPrivateKey,
-      p,
-    )}`,
+    `receiverSecretKey: ${receiverSecretKey} : ${utils.hexToFieldPreserve(receiverSecretKey, p)}`,
   );
   logger.debug(`salt: ${salt} : ${utils.hexToFieldPreserve(salt, p)}`);
   logger.debug(`payTo: ${payTo} : ${utils.hexToFieldPreserve(payTo, p)}`);
@@ -749,8 +856,25 @@ async function burn(
   logger.debug(`root: ${root} : ${utils.hexToFieldPreserve(root, p)}`);
   logger.debug(`siblingPath:`, siblingPath);
   logger.debug(`commitmentIndex:`, commitmentIndex);
+  logger.debug(`public key tree leaf index:`, publicKeyTreeData.leafIndex);
+  logger.debug(`receiver public key:`, receiverPublicKey);
+  logger.debug(`public key root:`, publicKeyTreeData.siblingPath[0]);
 
-  const publicInputHash = utils.concatenateThenHash(root, nullifier, amount, payToLeftPadded); // notice we're using the version of payTo which has been padded to 256-bits; to match our derivation of publicInputHash within our zokrates proof.
+  const amountLeftPadded = utils.ensure0x(utils.strip0x(amount).padStart(64, '0'));
+
+  // we need to compress the number of public inputs passed to solidity because of its limited stack space.
+  const publicInputsArray = [
+    root,
+    nullifier,
+    amountLeftPadded,
+    payToLeftPadded,
+    publicKeyTreeData.siblingPath[0],
+    ...encryption.flat().map(e => `0x${e.toString(16).padStart(64, '0')}`), // convert to hex string for sha hash
+    ...AUTHORITY_PUBLIC_KEYS.slice(0, 1)
+      .flat()
+      .map(e => `0x${e.toString(16).padStart(64, '0')}`),
+  ];
+  const publicInputHash = utils.concatenateThenHash(...publicInputsArray); // notice we're using the version of payTo which has been padded to 256-bits; to match our derivation of publicInputHash within our zokrates proof.
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -765,12 +889,20 @@ async function burn(
     new Element(publicInputHash, 'field', 248, 1),
     new Element(payTo, 'field'),
     new Element(amount, 'field', 128, 1),
-    new Element(receiverZkpPrivateKey, 'field'),
+    new Element(receiverSecretKey, 'field'),
     new Element(salt, 'field'),
     ...siblingPathElements.slice(1),
     new Element(commitmentIndex, 'field', 128, 1), // the binary decomposition of a leafIndex gives its path's 'left-right' positions up the tree. The decomposition is done inside the circuit.,
     new Element(nullifier, 'field'),
     new Element(root, 'field'),
+    new Element(BigInt(publicKeyTreeData.siblingPath[0]), 'scalar'),
+    ...publicKeyTreeData.siblingPath.slice(1).map(f => new Element(BigInt(f), 'scalar')),
+    new Element(BigInt(publicKeyTreeData.leafIndex), 'scalar'),
+    ...encryption.flat().map(f => new Element(f, 'scalar')),
+    ...AUTHORITY_PUBLIC_KEYS.slice(0, 1)
+      .flat()
+      .map(f => new Element(f, 'scalar')), // the double mapping is because each element of the key array is an array (representing an (x,y) curve point)
+    new Element(randomSecret, 'scalar'),
   ]);
 
   logger.debug(
@@ -807,26 +939,16 @@ async function burn(
   logger.debug(publicInputs);
 
   // Burn the commitment and return tokens to the payTo account.
-  const txReceipt = await fTokenShieldInstance.burn(
-    proof,
-    publicInputs,
-    root,
-    nullifier,
-    amount,
-    payTo,
-    {
-      from: account,
-      gas: 6500000,
-      gasPrice: config.GASPRICE,
-    },
-  );
+  const txReceipt = await fTokenShieldInstance.burn(proof, publicInputs, publicInputsArray, {
+    from: account,
+    gas: 6500000,
+    gasPrice: config.GASPRICE,
+  });
   utils.gasUsedStats(txReceipt, 'burn');
 
   const newRoot = await fTokenShieldInstance.latestRoot();
   logger.debug(`Merkle Root after burn: ${newRoot}`);
-
   logger.debug('BURN COMPLETE\n');
-
   return { z_C: commitment, z_C_index: commitmentIndex, txReceipt };
 }
 
@@ -835,4 +957,7 @@ module.exports = {
   transfer,
   simpleFungibleBatchTransfer,
   burn,
+  blacklist,
+  unblacklist,
+  decryptTransaction,
 };
