@@ -69,6 +69,12 @@ function keyExtractor(solFilePath) {
 async function generateZokratesFiles(outputDirectory, codeName) {
   logger.info(`Setting up in directory ${outputDirectory}`);
 
+  try {
+    await mkdir(outputDirectory);
+  } catch (err) {
+    // Directory already exists, don't worry.
+  }
+
   const outputDirWithSlash = outputDirectory.endsWith('/')
     ? outputDirectory
     : `${outputDirectory}/`;
