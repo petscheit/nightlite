@@ -45,7 +45,7 @@ async function unblacklist(blacklistedAddress, blockchainOptions) {
   const fTokenShield = contract(fTokenShieldJson);
   fTokenShield.setProvider(Web3.connect());
   const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
-  fTokenShieldInstance.unblacklistAddress(blacklistedAddress, {
+  fTokenShieldInstance.unBlacklistAddress(blacklistedAddress, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
