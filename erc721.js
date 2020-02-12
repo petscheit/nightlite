@@ -19,8 +19,8 @@ const erc721Interface = require('./contracts/ERC721Interface.json');
 /**
  * Mint a commitment
  * @param {string} tokenId - the asset token
- * @param {string} zkpPublicKey - ZKP public key, see README for more info
- * @param {string} salt - Alice's token serial number as a hex string
+ * @param {string} zkpPublicKey - The minter's ZKP public key. Note that this is NOT the same as their Ethereum address.
+ * @param {string} salt - A random 32 byte hex string (66 characters long, including '0x' at the beginning)
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.nfTokenShieldJson - ABI of nfTokenShield
  * @param {String} blockchainOptions.nfTokenShieldAddress - Address of deployed nfTokenShieldContract
@@ -38,6 +38,12 @@ const erc721Interface = require('./contracts/ERC721Interface.json');
 async function mint(tokenId, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { nfTokenShieldJson, nfTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
+
+  if (utils.isHex(zkpPublicKey, 66)) {
+    throw new TypeError('zkpPublicKey should be 66 characters long (0x + 64 character hex string');
+  }
+
+  utils.validateCommitment({ salt });
 
   const {
     codePath,
@@ -149,10 +155,10 @@ async function mint(tokenId, zkpPublicKey, salt, blockchainOptions, zokratesOpti
 /**
  * This function actually transfers a token, assuming that we have a proof.
  * @param {String} tokenId - the token's unique id (this is a full 256 bits)
- * @param {String} receiverZkpPublicKey
- * @param {String} originalCommitmentSalt
- * @param {String} newCommitmentSalt
- * @param {String} senderZkpPrivateKey
+ * @param {String} receiverZkpPublicKey - The receiver's ZKP public key. Note that this is NOT the same as their Ethereum address.
+ * @param {String} originalCommitmentSalt - The salt used to generate the commitment being transferred
+ * @param {String} newCommitmentSalt - The salt for the NEW commitment
+ * @param {String} senderZkpPrivateKey - The sender's ZKP private key.
  * @param {String} commitment - Commitment of token being sent
  * @param {Integer} commitmentIndex - the position of commitment in the on-chain Merkle Tree
  * @param {Object} blockchainOptions
@@ -176,6 +182,22 @@ async function transfer(
 ) {
   const { nfTokenShieldJson, nfTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
+
+  if (utils.isHex(receiverZkpPublicKey, 66)) {
+    throw new TypeError(
+      'receiverZkpPublicKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  if (utils.isHex(senderZkpPrivateKey, 66)) {
+    throw new TypeError(
+      'senderZkpPrivateKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  utils.validateCommitment({ salt: originalCommitmentSalt, commitment, commitmentIndex });
+  // Validate output commitment
+  utils.validateCommitment({ salt: newCommitmentSalt });
 
   const {
     codePath,
@@ -336,8 +358,8 @@ async function transfer(
  * Burns a commitment and returns the token balance to blockchainOptions.tokenReceiver
  * @param {String} tokenId - ID of token
  * @param {String} receiverZkpPrivateKey
- * @param {String} salt - salt of token
- * @param {String} commitment
+ * @param {String} salt - Salt used to generate commitment
+ * @param {String} commitment - Commitment ID
  * @param {String} commitmentIndex
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.nfTokenShieldJson - ABI of nfTokenShield
@@ -354,6 +376,14 @@ async function burn(
   zokratesOptions,
 ) {
   const { nfTokenShieldJson, nfTokenShieldAddress, tokenReceiver: payTo } = blockchainOptions;
+
+  if (utils.isHex(receiverZkpPrivateKey, 66)) {
+    throw new TypeError(
+      'receiverZkpPrivateKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  utils.validateCommitment({ salt, commitment, commitmentIndex });
 
   const account = utils.ensure0x(blockchainOptions.account);
 

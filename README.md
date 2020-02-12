@@ -1,20 +1,18 @@
 # Nightlite
 
-This library strips down the main Nightfall repository to the minimum needed to run the Nightfall
-protocol on other applications.
+This library strips down the main [Nightfall](https://github.com/EYBlockchain/nightfall/) repository
+to the minimum needed to run the Nightfall protocol on other applications.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Installation and Configuration](#installation-and-configuration)
-- [Trusted Setup](#trusted-setup)
-- [ZKP Public/Private Keys](#zkp-publicprivate-keys)
-- [Deploy Necessary Contracts](#deploy-necessary-contracts)
-- [Deploy VKs to the blockchain](#deploy-vks-to-the-blockchain)
-- [Run Nightfall Functions](#run-nightfall-functions)
-- [To Do](#to-do)
-  - [Passing Providers](#passing-providers)
-  - [Acknowledgements](#acknowledgements)
+  - [Trusted Setup](#trusted-setup)
+  - [ZKP Public/Private Keys](#zkp-publicprivate-keys)
+  - [Deploy Necessary Contracts](#deploy-necessary-contracts)
+  - [Deploy VKs to the blockchain](#deploy-vks-to-the-blockchain)
+  - [Run Nightfall Functions](#run-nightfall-functions)
+- [Acknowledgements](#acknowledgements)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -53,7 +51,7 @@ Finally, on startup, your application should run `provider.connect(<ProviderURL>
 `provider.connect('ws://ganache:8545')`) This will set the provider that all Nightfall smart
 contract calls will use.
 
-## Trusted Setup
+### Trusted Setup
 
 The `setup/gm17` directory contains the .code files that you need in order to run the Nightfall
 functions.
@@ -67,7 +65,7 @@ documentation in `setup/generateZokratesFiles()` for usage instructions.
 The Trusted Setup step will take approximately one hour. The Trusted Setup step will need to be
 re-run for a given .code file whenever it is changed.
 
-## ZKP Public/Private Keys
+### ZKP Public/Private Keys
 
 In order to make private transactions, you will need a ZKP public/private key pair. This is separate
 from the typical Ethereum public/private key pair.
@@ -83,7 +81,7 @@ You can generate your matching public key by hashing it (you can use our `utils.
 Just as with typical Ethereum key pairs, losing your private key can mean the loss of any
 commitments you hold.
 
-## Deploy Necessary Contracts
+### Deploy Necessary Contracts
 
 The following contracts are necessary for Nightfall:
 
@@ -101,7 +99,7 @@ truffle deployments and use web3 or another similar library in the future.
 FToken and NFTokenMetadata are placeholder ERC721/ERC20 contracts. In order to replace them, you
 need to swap the FToken/NFTokenMetadata contracts in this migration script.
 
-## Deploy VKs to the blockchain
+### Deploy VKs to the blockchain
 
 The Verification Keys that we generated earlier in the `Trusted Setup` step need to be deployed to
 the blockchain. We deploy them directly to the Shield Contracts. The function `loadVk()` loads the
@@ -115,33 +113,28 @@ relates to a 'transfer').
 A sample implementation can be found in Nightfall's `zkp/src/vk-controller.js`, in the function
 `initializeVks()`.
 
-## Run Nightfall Functions
+### Run Nightfall Functions
 
 There are currently six Nightfall functions, `Mint`, `Transfer`, and `Burn` for both ERC20 and
 ERC721 contracts. After the above steps are completed, you can call those functions as many times as
 you'd like. The above steps do not need to be repeated (assuming your environment is now setup).
 
-Note that there are certain things that need to be stored while running these functions.
+#### Commitments
 
-When a commitment is generated (whether its through minting a commitment, or `ft-transfer`'s
-"change" mechanic), it has a `salt`, a `commitment`, and a `commitmentIndex`. All of these things
-are required for later function calls. Refer to the documentation on each individual function for
-more information.
+A commitment is a "shielded" ERC20/ERC721 token whose current owner and transfer history is private.
+A commitment is `minted` by transferring a corresponding token to the shield contract, which
+produces a commitment in exchange.
 
-## To Do
+A commitment is identified by its `salt`, ID (simply referred to as `commitment`), and its
+`commitmentIndex`. When you mint a commitment, you must provide a `salt`. You must keep this salt
+for future transfer/burns. Whenever a new commitment is created, the corresponding function will
+return its `commitment` and `commitmentIndex`, which also must be saved for future transfers and
+burns.
 
-### Passing Providers
+When a commitment is `burned`, the commitment is destroyed, and the tokens are sent to the specified
+`payTo` address (or the sender of the transaction if not specified).
 
-Currently, most functions that interact with smart contracts just "know" what the proper provider
-is, but this isn't good. We need to figure out how to get these functions their providers.
-
-Here are some possibilities:
-
-1. **Pass the provider to each function**: The most straightforward, but also a lot of clutter
-2. Set a "provider" singleton: Requires some additional setup from the user (probably just calling
-   `setProvider()` on startup).
-
-### Acknowledgements
+## Acknowledgements
 
 Team Nightfall thanks those who have indirectly contributed to it, with the ideas and tools that
 they have shared with the community:

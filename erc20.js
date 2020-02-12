@@ -18,23 +18,56 @@ const Web3 = require('./provider');
 const erc20Interface = require('./contracts/ERC20Interface.json');
 
 /**
+ * Ensures that an `amount` value is either the hex format we expect, or an integer.
+ * If it's an integer, it converts it into the hex format we need.
+ * TODO: Directly providing hex values is deprecated and should be removed once we update Nightfall as such.
+ *
+ * @param {*} amount - Value to check
+ */
+function parseValue(amount) {
+  if (Number.isInteger(amount)) {
+    return `0x${amount.toString(16).padStart(32, '0')}`;
+  }
+  if (utils.isHex(amount) && amount.length === 34) {
+    return amount;
+  }
+  throw new TypeError(
+    'Amount was improperly formatted. Expected integer or 36 character hex string (0x + hex value)',
+  );
+}
+
+/**
  * Mint a fungible token commitment.
  *
  * Note that `ownerPublicKey` is NOT the same as the user's Ethereum address. This is a 32 byte hex that is unique to a given user.
  *
- * @param {String} amount - the value of the coin
+ * @param {Number} value - the value of the coin
  * @param {String} zkpPublicKey - The minter's ZKP public key. Note that this is NOT the same as their Ethereum address.
- * @param {String} salt - Alice's token serial number as a hex string
+ * @param {String} salt - A random 32 byte hex string (66 characters long, including '0x' at the beginning)
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
  * @param {String} blockchainOptions.account - Account that is sending these transactions. Must be token owner.
- * @returns {String} commitment - Commitment of the minted coins
- * @returns {Number} commitmentIndex
+ * @param {String} zokratesOptions.codePath - Path of the compiled code (without the .code suffix)
+ * @param {String} [zokratesOptions.outputDirectory=./] - Directory to output all generated files
+ * @param {String} [zokratesOptions.witnessName=witness] - Name of witness file
+ * @param {String} [zokratesOptions.pkPath] - Location of the proving key file
+ * @param {Boolean} zokratesOptions.createProofJson - Whether or not to create a proof.json file
+ * @param {String} [zokratesOptions.proofName=proof.json] - Name of generated proof JSON.
+ * @returns {String} output.commitment - Commitment of the minted coins
+ * @returns {Number} output.commitmentIndex
  */
-async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
+async function mint(value, zkpPublicKey, salt, blockchainOptions, zokratesOptions) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
+
+  const hexValue = parseValue(value);
+
+  if (utils.isHex(zkpPublicKey, 66)) {
+    throw new TypeError('zkpPublicKey should be 66 characters long (0x + 64 character hex string');
+  }
+
+  utils.validateCommitment({ salt });
 
   const {
     codePath,
@@ -53,19 +86,19 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
   logger.debug('\nIN MINT...');
 
   // Calculate new arguments for the proof:
-  const commitment = utils.concatenateThenHash(amount, zkpPublicKey, salt);
+  const commitment = utils.concatenateThenHash(hexValue, zkpPublicKey, salt);
 
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
   const pt = Math.ceil((config.LEAF_HASHLENGTH * 8) / config.ZOKRATES_PACKING_SIZE); // packets in bits
-  logger.debug('amount: ', `${amount} : `, utils.hexToFieldPreserve(amount, p, 1));
+  logger.debug('amount: ', `${hexValue} : `, utils.hexToFieldPreserve(hexValue, p, 1));
   logger.debug('publicKey: ', zkpPublicKey, ' : ', utils.hexToFieldPreserve(zkpPublicKey, p, pt));
   logger.debug('salt: ', salt, ' : ', utils.hexToFieldPreserve(salt, p, pt));
 
   logger.debug('New Proof Variables:');
   logger.debug('commitment: ', commitment, ' : ', utils.hexToFieldPreserve(commitment, p, pt));
 
-  const publicInputHash = utils.concatenateThenHash(amount, commitment);
+  const publicInputHash = utils.concatenateThenHash(hexValue, commitment);
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -78,7 +111,7 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
-    new Element(amount, 'field', 128, 1),
+    new Element(hexValue, 'field', 128, 1),
     new Element(zkpPublicKey, 'field'),
     new Element(salt, 'field'),
     new Element(commitment, 'field'),
@@ -112,7 +145,7 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
   const fTokenAddress = await fTokenShieldInstance.getFToken.call();
   const fTokenInstance = await fToken.at(fTokenAddress);
 
-  await fTokenInstance.approve(fTokenShieldInstance.address, parseInt(amount, 16), {
+  await fTokenInstance.approve(fTokenShieldInstance.address, parseInt(hexValue, 16), {
     from: account,
     gas: 4000000,
     gasPrice: config.GASPRICE,
@@ -131,7 +164,7 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 
   // Mint the commitment
   logger.debug('Approving ERC-20 spend from: ', fTokenShieldInstance.address);
-  const txReceipt = await fTokenShieldInstance.mint(proof, publicInputs, amount, commitment, {
+  const txReceipt = await fTokenShieldInstance.mint(proof, publicInputs, hexValue, commitment, {
     from: account,
     gas: 6500000,
     gasPrice: config.GASPRICE,
@@ -143,7 +176,7 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
   });
   const commitmentIndex = newLeafLog[0].args.leafIndex;
 
-  logger.debug('ERC-20 spend approved!', parseInt(amount, 16));
+  logger.debug('ERC-20 spend approved!', parseInt(hexValue, 16));
   logger.debug(
     'Balance of account',
     account,
@@ -157,9 +190,45 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
 }
 
 /**
- * This function actually transfers a coin.
- * @param {Array} inputCommitments - Array of two commitments owned by the sender.
- * @param {Array} outputCommitments - Array of two commitments.
+ * Transfers a commitment under zero knowledge.
+ *
+ * Input commitments should be formatted as such:
+ * Value is the value of the input commitments, as integers.
+ * Salt is the salt value used to generate these commitments.
+ * Commitment and commitment index are provided from previous mint/transfer calls.
+ * inputCommitments [
+ *  {
+ *     value: 5,
+ *     salt: '0x504a6f1a7ccbfa6806b603346bcd746603a9eccda05bc0c101527fb3123f8a54',
+ *     commitment: '0x242c2229794bc899de5299361cadeb942e296fd7be0d8bb0fe8468aedc78fcf9',
+ *     commitmentIndex: 0,
+ *  },
+ *   {
+ *     value: 5,
+ *     salt: '0x82c23f61a6950793646ff98afeb07ae3bcbcf7d112e960c93217b2bb837f27fa',
+ *     commitment: '0x75bc68b373d09e9b4dc9ef856c92561f1a1e732f72f9b2195b299fd5aafc6695',
+ *     commitmentIndex: 1,
+ *  },
+ * ]
+ *
+ * Output commitments should be formatted as such:
+ * Value is the value of the new output commitments, as integers.
+ * Salt is an arbitrary 32 byte hex string that you must provide.
+ * [
+ *   {
+ *     value: 5,
+ *     salt: '0x4956394ab70f9bdc58d926cb023de775f05d6274524f43ed2cec3ad4a441d3b0'
+ *   },
+ *   {
+ *     value: 25,
+ *     salt: '0x4e428cb2014edf8feec64d96d8645b98ef60a1870ce955ed09df5716dc56f621'
+ *   }
+ * ]
+ *
+ * For information on the ZKP public/private keys, read the README.
+ *
+ * @param {Array} inputCommitments - Array of two commitments owned by the sender. See above for details.
+ * @param {Array} outputCommitments - Array of two commitments. See above for details.
  * Currently the first is sent to the receiverPublicKey, and the second is sent to the sender.
  * @param {String} receiverZkpPublicKey - Receiver's Zkp Public Key
  * @param {String} senderZkpPrivateKey - Private key of the sender's
@@ -167,6 +236,12 @@ async function mint(amount, zkpPublicKey, salt, blockchainOptions, zokratesOptio
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
  * @param {String} blockchainOptions.account - Account that is sending these transactions
+ * @param {String} zokratesOptions.codePath - Path of the compiled code (without the .code suffix)
+ * @param {String} [zokratesOptions.outputDirectory=./] - Directory to output all generated files
+ * @param {String} [zokratesOptions.witnessName=witness] - Name of witness file
+ * @param {String} [zokratesOptions.pkPath] - Location of the proving key file
+ * @param {Boolean} zokratesOptions.createProofJson - Whether or not to create a proof.json file
+ * @param {String} [zokratesOptions.proofName=proof.json] - Name of generated proof JSON.
  * @returns {Object[]} outputCommitments - Updated outputCommitments with their commitments and indexes.
  * @returns {Object} Transaction object
  */
@@ -180,6 +255,34 @@ async function transfer(
 ) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
+
+  if (utils.isHex(receiverZkpPublicKey, 66)) {
+    throw new TypeError(
+      'receiverPublicKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  if (utils.isHex(senderZkpPrivateKey, 66)) {
+    throw new TypeError(
+      'senderZkpPrivateKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  const inputCommitments = _inputCommitments.map(commitment => {
+    utils.validateCommitment(commitment);
+    return {
+      ...commitment,
+      value: parseValue(commitment.value),
+    };
+  });
+
+  const outputCommitments = _outputCommitments.map(commitment => {
+    utils.validateCommitment(commitment);
+    return {
+      ...commitment,
+      value: parseValue(commitment.value),
+    };
+  });
 
   const {
     codePath,
@@ -197,9 +300,6 @@ async function transfer(
   const fTokenShield = contract(fTokenShieldJson);
   fTokenShield.setProvider(Web3.connect());
   const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
-
-  const inputCommitments = _inputCommitments;
-  const outputCommitments = _outputCommitments;
 
   // due to limitations in the size of the adder implemented in the proof dsl, we need C+D and E+F to easily fit in <128 bits (16 bytes). They could of course be bigger than we allow here.
   const inputSum =
@@ -482,33 +582,62 @@ async function transfer(
 }
 
 /**
-This function is the simple batch equivalent of fungible transfer.  It takes a single
-input coin and splits it between 20 recipients (some of which could be the original owner)
-It's really the 'split' of a join-split.  It's no use for non-fungibles because, for them,
-there's no concept of joining and splitting (yet).
-@param {string} C - The value of the input coin C
-@param {array} E - The values of the output coins (including the change coin)
-@param {array} pkB - Bobs' public keys (must include at least one of pkA for change)
-@param {string} S_C - Alice's salt
-@param {array} S_E - Bobs' salts
-@param {string} skA - Alice's private ('s'ecret) key
-@param {string} zC - Alice's token commitment
-@param {integer} zCIndex - the position of zC in the on-chain Merkle Tree
-@param {string} account - the account that is paying for this
-@returns {array} zE - The output token commitments
-@returns {array} z_E_index - the indexes of the commitments within the Merkle Tree.  This is required for later transfers/joins so that Alice knows which leaf of the Merkle Tree she needs to get from the fTokenShieldInstance contract in order to calculate a path.
-@returns {object} txReceipt - a promise of a blockchain transaction
-*/
+ * Takes in a single input commitment and splits into up to 20 commitments. These commitments can be sent to any user.
+ *
+ * @param {Object} _inputCommitment - Input commitment
+ * @param {String} _inputCommitment.salt - 32 byte hex string used to generate the commitment
+ * @param {String} _inputCommitment.commitment - Commitment ID
+ * @param {Number} _inputCommitment.commitmentIndex
+ * @param {Object[]} _outputCommitments - Array of commitments for the split. See above for more details
+ * @param {String[]} receiversZkpPublicKeys - Array of public keys. See above for more details
+ * @param {String} senderZkpPrivateKey
+ * @param {Object} blockchainOptions
+ * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
+ * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
+ * @param {String} blockchainOptions.account - Account that is sending these transactions
+ * @param {String} zokratesOptions.codePath - Path of the compiled code (without the .code suffix)
+ * @param {String} [zokratesOptions.outputDirectory=./] - Directory to output all generated files
+ * @param {String} [zokratesOptions.witnessName=witness] - Name of witness file
+ * @param {String} [zokratesOptions.pkPath] - Location of the proving key file
+ * @param {Boolean} zokratesOptions.createProofJson - Whether or not to create a proof.json file
+ * @param {String} [zokratesOptions.proofName=proof.json] - Name of generated proof JSON.
+ * @returns {array} zE - The output token commitments
+ * @returns {array} z_E_index - the indexes of the commitments within the Merkle Tree.  This is required for later transfers/joins so that Alice knows which leaf of the Merkle Tree she needs to get from the fTokenShieldInstance contract in order to calculate a path.
+ * @returns {object} txReceipt - a promise of a blockchain transaction
+ */
 async function simpleFungibleBatchTransfer(
   _inputCommitment,
   _outputCommitments,
-  receiversPublicKeys,
-  senderSecretKey,
+  receiversZkpPublicKeys,
+  senderZkpPrivateKey,
   blockchainOptions,
   zokratesOptions,
 ) {
   const { fTokenShieldJson, fTokenShieldAddress } = blockchainOptions;
   const account = utils.ensure0x(blockchainOptions.account);
+
+  receiversZkpPublicKeys.forEach(zkpPublicKey => {
+    if (utils.isHex(zkpPublicKey, 66)) {
+      throw new TypeError(
+        'zkpPublicKey should be 66 characters long (0x + 64 character hex string',
+      );
+    }
+  });
+
+  if (utils.isHex(senderZkpPrivateKey, 66)) {
+    throw new TypeError(
+      'senderZkpPrivateKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  const inputCommitment = _inputCommitment;
+  utils.validateCommitment(inputCommitment);
+
+  // Validate commitments
+  const outputCommitments = _outputCommitments.map(commitment => {
+    utils.validateCommitment(commitment);
+    return commitment;
+  });
 
   const {
     codePath,
@@ -527,13 +656,10 @@ async function simpleFungibleBatchTransfer(
   fTokenShield.setProvider(Web3.connect());
   const fTokenShieldInstance = await fTokenShield.at(fTokenShieldAddress);
 
-  const inputCommitment = _inputCommitment;
-  const outputCommitments = _outputCommitments;
-
   // check we have arrays of the correct length
   if (outputCommitments.length !== config.BATCH_PROOF_SIZE)
     throw new Error('outputCommitments array is the wrong length');
-  if (receiversPublicKeys.length !== config.BATCH_PROOF_SIZE)
+  if (receiversZkpPublicKeys.length !== config.BATCH_PROOF_SIZE)
     throw new Error('receiversPublicKeys array is the wrong length');
 
   // as BigInt is a better representation (up until now we've preferred hex strings), we may get inputs passed as hex strings so let's do a conversion just in case
@@ -544,12 +670,12 @@ async function simpleFungibleBatchTransfer(
     throw new Error(`Input commitment value was ${inputSum} but output total was ${outputSum}`);
 
   // Calculate new arguments for the proof:
-  inputCommitment.nullifier = utils.concatenateThenHash(inputCommitment.salt, senderSecretKey);
+  inputCommitment.nullifier = utils.concatenateThenHash(inputCommitment.salt, senderZkpPrivateKey);
 
   for (let i = 0; i < outputCommitments.length; i += 1) {
     outputCommitments[i].commitment = utils.concatenateThenHash(
       outputCommitments[i].value,
-      receiversPublicKeys[i],
+      receiversZkpPublicKeys[i],
       outputCommitments[i].salt,
     );
   }
@@ -586,13 +712,13 @@ async function simpleFungibleBatchTransfer(
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
     new Element(inputCommitment.value, 'field', 128, 1),
-    new Element(senderSecretKey, 'field'),
+    new Element(senderZkpPrivateKey, 'field'),
     new Element(inputCommitment.salt, 'field'),
     ...inputCommitment.siblingPathElements.slice(1),
     new Element(inputCommitment.commitmentIndex, 'field', 128, 1), // the binary decomposition of a leafIndex gives its path's 'left-right' positions up the tree. The decomposition is done inside the circuit.,,
     new Element(inputCommitment.nullifier, 'field'),
     ...outputCommitments.map(item => new Element(item.value, 'field', 128, 1)),
-    ...receiversPublicKeys.map(item => new Element(item, 'field')),
+    ...receiversZkpPublicKeys.map(item => new Element(item, 'field')),
     ...outputCommitments.map(item => new Element(item.salt, 'field')),
     ...outputCommitments.map(item => new Element(item.commitment, 'field')),
     new Element(root, 'field'),
@@ -654,10 +780,17 @@ async function simpleFungibleBatchTransfer(
   const minOutputCommitmentIndex = parseInt(newLeavesLog[0].args.minLeafIndex, 10);
   const maxOutputCommitmentIndex = minOutputCommitmentIndex + outputCommitments.length - 1;
 
+  let lastCommitmentIndex = parseInt(maxOutputCommitmentIndex, 10);
+
+  outputCommitments.forEach((transferCommitment, indx) => {
+    outputCommitments[indx].commitmentIndex = lastCommitmentIndex - (outputCommitments.length - 1);
+    lastCommitmentIndex += 1;
+  });
+
   logger.debug('TRANSFER COMPLETE\n');
 
   return {
-    maxOutputCommitmentIndex,
+    outputCommitments,
     txReceipt,
   };
 }
@@ -665,19 +798,25 @@ async function simpleFungibleBatchTransfer(
 /**
  * This function burns a commitment, i.e. it recovers ERC-20 into your
  * account. All values are hex strings.
- * @param {string} amount - the value of the commitment in hex (i.e. the amount you are burning)
+ * @param {Number} value - The value of the commitment you are burning
  * @param {string} receiverZkpPrivateKey - the secret key of the person doing the burning (in hex)
- * @param {string} salt - the random nonce used in the commitment
- * @param {string} commitment - the value of the commitment being burned
+ * @param {string} salt - The hex value used to generate the commitment
+ * @param {string} commitment - the ID of the commitment being burned
  * @param {string} commitmentIndex - the index of the commitment in the Merkle Tree
  * @param {Object} blockchainOptions
  * @param {String} blockchainOptions.fTokenShieldJson - ABI of fTokenShieldInstance
  * @param {String} blockchainOptions.fTokenShieldAddress - Address of deployed fTokenShieldContract
  * @param {String} blockchainOptions.account - Account that is sending these transactions
  * @param {String} blockchainOptions.tokenReceiver - Account that will receive the tokens
+ * @param {String} zokratesOptions.codePath - Path of the compiled code (without the .code suffix)
+ * @param {String} [zokratesOptions.outputDirectory=./] - Directory to output all generated files
+ * @param {String} [zokratesOptions.witnessName=witness] - Name of witness file
+ * @param {String} [zokratesOptions.pkPath] - Location of the proving key file
+ * @param {Boolean} zokratesOptions.createProofJson - Whether or not to create a proof.json file
+ * @param {String} [zokratesOptions.proofName=proof.json] - Name of generated proof JSON.
  */
 async function burn(
-  amount,
+  value,
   receiverZkpPrivateKey,
   salt,
   commitment,
@@ -688,6 +827,16 @@ async function burn(
   const { fTokenShieldJson, fTokenShieldAddress, tokenReceiver: _payTo } = blockchainOptions;
 
   const account = utils.ensure0x(blockchainOptions.account);
+
+  if (utils.isHex(receiverZkpPrivateKey, 66)) {
+    throw new TypeError(
+      'receiverZkpPrivateKey should be 66 characters long (0x + 64 character hex string',
+    );
+  }
+
+  const hexValue = parseValue(value);
+
+  utils.validateCommitment({ salt, commitment, commitmentIndex });
 
   const {
     codePath,
@@ -731,7 +880,7 @@ async function burn(
   // Summarise values in the console:
   logger.debug('Existing Proof Variables:');
   const p = config.ZOKRATES_PACKING_SIZE;
-  logger.debug(`amount: ${amount} : ${utils.hexToFieldPreserve(amount, p)}`);
+  logger.debug(`amount: ${hexValue} : ${utils.hexToFieldPreserve(hexValue, p)}`);
   logger.debug(
     `receiverSecretKey: ${receiverZkpPrivateKey} : ${utils.hexToFieldPreserve(
       receiverZkpPrivateKey,
@@ -750,7 +899,7 @@ async function burn(
   logger.debug(`siblingPath:`, siblingPath);
   logger.debug(`commitmentIndex:`, commitmentIndex);
 
-  const publicInputHash = utils.concatenateThenHash(root, nullifier, amount, payToLeftPadded); // notice we're using the version of payTo which has been padded to 256-bits; to match our derivation of publicInputHash within our zokrates proof.
+  const publicInputHash = utils.concatenateThenHash(root, nullifier, hexValue, payToLeftPadded); // notice we're using the version of payTo which has been padded to 256-bits; to match our derivation of publicInputHash within our zokrates proof.
   logger.debug(
     'publicInputHash:',
     publicInputHash,
@@ -764,7 +913,7 @@ async function burn(
   const allInputs = utils.formatInputsForZkSnark([
     new Element(publicInputHash, 'field', 248, 1),
     new Element(payTo, 'field'),
-    new Element(amount, 'field', 128, 1),
+    new Element(hexValue, 'field', 128, 1),
     new Element(receiverZkpPrivateKey, 'field'),
     new Element(salt, 'field'),
     ...siblingPathElements.slice(1),
@@ -812,7 +961,7 @@ async function burn(
     publicInputs,
     root,
     nullifier,
-    amount,
+    hexValue,
     payTo,
     {
       from: account,

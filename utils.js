@@ -27,9 +27,18 @@ function strip0x(hex) {
   return hex.toString();
 }
 
-function isHex(h) {
+/**
+ * Checks to see if a string is hex (with or without 0x). Optional "length" parameter also verifies length.
+ *
+ * @param {String} hex
+ * @param {Number} [length]
+ */
+function isHex(hex, length) {
   const regexp = /^[0-9a-fA-F]+$/;
-  return regexp.test(strip0x(h));
+  const isValidHex = regexp.test(strip0x(hex));
+  // Check length. If length is not defined, then skip this check.
+  const isCorrectLength = length ? strip0x(hex).length === length : true;
+  return isValidHex && isCorrectLength;
 }
 
 /**
@@ -540,6 +549,30 @@ function gasUsedStats(txReceipt, functionName) {
   logger.debug('By verifier contract (post refund):', gasUsedByVerifierContract - refund);
 }
 
+/**
+ * Validates a commitment to ensure that its ID, commitmentIndex, salt and values are correctly formatted.
+ * Note that this function does NOT verify hash contents.
+ * This function skips parameters that are not present.
+ * @param {Object} commitment
+ * @param {String} commitment.commitment - commitment ID
+ * @param {Number} commitment.commitmentIndex
+ * @param {String} commitment.salt
+ * @throws {TypeError} - If any of the values are invalid.
+ * @returns {Boolean} - Returns true if it doesn't throw
+ */
+function validateCommitment(commitment) {
+  const { id, commitmentIndex, salt } = commitment;
+  const isCommitmentValid = commitment ? isHex(id, 66) : true;
+  const isIndexValid = commitmentIndex ? Number.isInteger(commitmentIndex) : true;
+  const isSaltValid = salt ? isHex(salt, 66) : true;
+
+  if (!isCommitmentValid)
+    throw new TypeError('commitment ID must be 66 characters (0x + 64 hex characters');
+  if (!isIndexValid) throw new TypeError('commitmentIndex must be an integer');
+  if (!isSaltValid) throw new TypeError('salt must be 66 characters (0x + 64 hex characters');
+  return true;
+}
+
 module.exports = {
   isHex,
   utf8StringToHex,
@@ -575,4 +608,5 @@ module.exports = {
   leftPadHex,
   formatInputsForZkSnark,
   gasUsedStats,
+  validateCommitment,
 };
