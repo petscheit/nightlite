@@ -89,6 +89,11 @@ async function mint(tokenId, zkpPublicKey, salt, blockchainOptions, zokratesOpti
     new Element(commitment, 'field'),
   ]);
 
+  logger.debug(
+    'To debug witness computation, use ./zok to run up a zokrates container then paste these arguments into the terminal:',
+  );
+  logger.debug(`./zokrates compute-witness -a ${allInputs.join(' ')} -i gm17/nft-mint/out`);
+
   await zokrates.computeWitness(codePath, outputDirectory, witnessName, allInputs);
 
   await zokrates.generateProof(pkPath, codePath, `${outputDirectory}/witness`, provingScheme, {
@@ -277,6 +282,12 @@ async function transfer(
     new Element(outputCommitment, 'field'),
   ]);
 
+  logger.debug(
+    'To debug witness computation, use ./zok to run up a zokrates container then paste these arguments into the terminal:',
+  );
+
+  logger.debug(`./zokrates compute-witness -a ${allInputs.join(' ')} -i gm17/nft-transfer/out`);
+
   await zokrates.computeWitness(codePath, outputDirectory, witnessName, allInputs);
 
   await zokrates.generateProof(pkPath, codePath, `${outputDirectory}/witness`, provingScheme, {
@@ -438,6 +449,11 @@ async function burn(
     new Element(nullifier, 'field'),
     new Element(root, 'field'),
   ]);
+
+  logger.debug(
+    'To debug witness computation, use ./zok to run up a zokrates container then paste these arguments into the terminal:',
+  );
+  logger.debug(`./zokrates compute-witness -a ${allInputs.join(' ')} -i gm17/nft-burn/out`);
 
   await zokrates.computeWitness(codePath, outputDirectory, witnessName, allInputs);
 
